@@ -2,82 +2,58 @@ import cv2
 import os
 import numpy as np
 from imutils import paths
+from itertools import groupby
 from tqdm import tqdm
-import argparse
 
-ap = argparse.ArgumentParser()
-ap.add_argument("-input", type=str, default="./depth_profiles", help="path to project")
-ap.add_argument("-output", type=str, default="./flatfield_profiles", help="path to store output")
-args = vars(ap.parse_args())
+NORMALIZATION_FACTOR = 235
+BATCH_SIZE = 10  # Process images in batches to reduce memory usage
 
-imagePaths = list(paths.list_images(args["input"]))
-imagePaths = sorted(imagePaths)
+def flatfielding_profiles(input_path, output_path):
+    print(f"[FLATFIELDING] Starting flatfielding...")
+    
+    # The images now have the depth value as the first part of their filename, and so normal sorting will work
+    imagePaths = list(paths.list_images(input_path))
+    imagePathsSorted = sorted(imagePaths)
 
-# to store the images and their names
-images = []
-img_names = []
+    # Group images by their directory paths
+    imageGroups = [list(group) for key, group in groupby(imagePathsSorted, os.path.dirname)]
+    print(f"[FLATFIELDING] Processing {len(imageGroups)} image groups...")
+    
+    for i, imageGroup in enumerate(imageGroups):
+        # Get image names without extension for saving later
+        img_names = [os.path.splitext(os.path.basename(path))[0] for path in imageGroup]
+        
+        # Extract metadata from filename: depth_project_date_time_location.tiff
+        # Use the first image's metadata since all images in the group should have the same metadata
+        filename = os.path.basename(imageGroup[0])
+        _, project, date, time, location = os.path.splitext(filename)[0].split('_')
 
-# for the logical testing
-old_inputPath = None
+        print(f"[FLATFIELDING] Processing group {i+1}/{len(imageGroups)}: {project}/{date}/{time}/{location} ({len(imageGroup)} images)")
 
-print('[Progress report]: start flatfielding the profiles...')
-# loop over the images
-image_counter = 0
+        # create output path
+        outputPath = os.path.sep.join([output_path, project, date, time, location])
+        os.makedirs(outputPath, exist_ok=True)
 
-for total_counter, imagePath in enumerate(tqdm(imagePaths, desc='[Progress report]: loading images')):
-    # storing metadata
-    _, _, project, date, time, location, filename = imagePath.split(os.path.sep)
-
-    # set input path
-    inputPath = os.path.sep.join([args['input'], project, date, location])
-
-    # initialize old_location and old date
-    if old_inputPath is None: old_inputPath = inputPath
-
-    # update counter
-    image_counter += 1
-
-    if old_inputPath != inputPath:
-        # once loaded, calculate the average image to perform flatfielding
-        images = np.array([np.array(img) for img in images])
+        # Calculate the average image to perform flatfielding
+        print(f"[FLATFIELDING] Calculating average image...")
+        images = np.array([cv2.imread(img, cv2.IMREAD_GRAYSCALE) for img in imageGroup])
         ff = np.average(images, axis=0).astype('uint8')
 
-        # flatfield each image
-        for index, image in enumerate(tqdm(images, desc='[Progress report]: Flat fielding')):
-            # flatfield
-            image = np.divide(image, ff)
-            image = image * 235
+        # Flatfield images in batches to avoid memory issues with divide and clip operations
+        print(f"[FLATFIELDING] Flatfielding images in {int(np.ceil(len(imageGroup)/BATCH_SIZE))} batches...")
+        for j in tqdm(range(0, len(imageGroup), BATCH_SIZE)):
+            batch_images = images[j:j + BATCH_SIZE]
+            batch_names = img_names[j:j + BATCH_SIZE]
+            
+            # Perform flatfielding on batch (divide and clip operations)
+            flatfielded_batch = np.divide(batch_images, ff) * NORMALIZATION_FACTOR
+            flatfielded_batch = np.clip(flatfielded_batch, 0, 255).astype('uint8')
+            
+            # Save batch of flatfielded images
+            for img, name in zip(flatfielded_batch, batch_names):
+                cv2.imwrite(os.path.sep.join([outputPath, f'{name}.jpeg']), img)
+            
+            # Explicitly free memory
+            del flatfielded_batch
 
-            # save flatfielded image
-            cv2.imwrite(os.path.sep.join([outputPath, f'{img_names[index]}.JPEG']), image)
-
-        # to store the images and their names
-        images = []
-        img_names = []
-
-        # set new old_path
-        old_inputPath = inputPath
-
-    # remove filename extension
-    img_names.append(os.path.splitext(filename)[0])
-
-    # loading all images of a single profile
-    images.append(cv2.imread(imagePath, cv2.IMREAD_GRAYSCALE))
-
-    # create output path
-    outputPath = os.path.sep.join([args["output"], project, date, time, location])
-    if not os.path.exists(outputPath): os.makedirs(outputPath)
-
-    if image_counter == len(imagePaths):
-        # once loaded, calculate the average image to perform flatfielding
-        images = np.array([np.array(img) for img in images])
-        ff = np.average(images, axis=0).astype('uint8')
-
-        # flatfield each image
-        for index, image in enumerate(tqdm(images, desc='[Progress report]: Flat fielding')):
-            # flatfield
-            image = np.divide(image, ff)
-            image = image * 235
-
-            # save flatfielded image
-            cv2.imwrite(os.path.sep.join([outputPath, f'{img_names[index]}.JPEG']), image)
+    print(f"[FLATFIELDING] Flatfielding completed successfully!")
