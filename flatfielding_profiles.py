@@ -11,15 +11,15 @@ BATCH_SIZE = 10  # Process images in batches to reduce memory usage
 def flatfielding_profiles(input_path, output_path):
     print(f"[FLATFIELDING] Starting flatfielding...")
     
-    # The images now have the depth value as the first part of their filename, and so normal sorting will work
-    imagePaths = list(paths.list_images(input_path))
-    imagePathsSorted = sorted(imagePaths)
-
-    # Group images by their directory paths
-    imageGroups = [list(group) for key, group in groupby(imagePathsSorted, os.path.dirname)]
-    print(f"[FLATFIELDING] Processing {len(imageGroups)} image groups...")
+    # Group and sort images by directory
+    image_paths = list(paths.list_images(input_path))
+    image_groups = [
+        sorted(list(group)) 
+        for key, group in groupby(sorted(image_paths, key=os.path.dirname), os.path.dirname)
+    ]
+    print(f"[FLATFIELDING] Processing {len(image_groups)} image groups...")
     
-    for i, imageGroup in enumerate(imageGroups):
+    for i, imageGroup in enumerate(image_groups):
         # Get image names without extension for saving later
         img_names = [os.path.splitext(os.path.basename(path))[0] for path in imageGroup]
         
@@ -28,7 +28,7 @@ def flatfielding_profiles(input_path, output_path):
         filename = os.path.basename(imageGroup[0])
         _, project, date, time, location = os.path.splitext(filename)[0].split('_')
 
-        print(f"[FLATFIELDING] Processing group {i+1}/{len(imageGroups)}: {project}/{date}/{time}/{location} ({len(imageGroup)} images)")
+        print(f"[FLATFIELDING] Processing group {i+1}/{len(image_groups)}: {project}/{date}/{time}/{location} ({len(imageGroup)} images)")
 
         # create output path
         outputPath = os.path.sep.join([output_path, project, date, time, location])
