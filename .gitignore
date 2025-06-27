@@ -2,6 +2,7 @@
 profiles/
 depth_profiles/
 flatfield_profiles/
+vignettes/
 
 # Python
 __pycache__/

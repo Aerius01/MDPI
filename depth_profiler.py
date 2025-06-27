@@ -14,14 +14,16 @@ def _get_sort_key(path):
     match = FILENAME_PATTERN.search(filename)
     return int(match.group(2)) if match else 0
 
-def rename_profiles(input_path, output_path, timestep):
+def profile_depths(input_path, output_path, timestep):
     print(f"[PROFILING] Starting depth matching...")
     
     # listing all images
     imagePaths = list(paths.list_images(input_path))
     
-    imagePathsSorted = sorted(imagePaths, key=_get_sort_key)
-    imageGroups = [list(group) for key, group in groupby(imagePathsSorted, os.path.dirname)]
+    # First group by directory, then sort each group
+    imageGroups = [list(group) for key, group in groupby(sorted(imagePaths, key=os.path.dirname), os.path.dirname)]
+    imageGroups = [sorted(group, key=_get_sort_key) for group in imageGroups]
+    
     print(f"[PROFILING] Processing {len(imageGroups)} image groups...")
 
     for i, imageGroup in enumerate(imageGroups):
