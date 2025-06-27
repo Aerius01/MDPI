@@ -4,7 +4,7 @@ import numpy as np
 class SoftMax:
     @staticmethod
     def soft_max(y_pred):
-        if y_pred == []:
+        if y_pred is None or y_pred.size == 0:
             return []
         else:
             y_pred -= np.max(y_pred)

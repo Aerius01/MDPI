@@ -3,6 +3,7 @@ profiles/
 depth_profiles/
 flatfield_profiles/
 vignettes/
+classification/
 
 # Python
 __pycache__/
