@@ -4,31 +4,24 @@ import numpy as np
 import cv2
 import os
 from tqdm import tqdm
-from imutils import paths
 from tools.hash.image_hashing import ImageHash
 
-def remove_duplicate_images(dataset_path, remove=False):
+def remove_duplicate_images(image_group, remove=False):
 	# initialize image hash function
 	ih = ImageHash()
-
-	# Grab the paths to all images in our input dataset directory and then initialize our hashes dictionary
-	# The list_images function uses os.walk(), which is a recursive function that walks recursively through 
-	# the entire directory structure, starting from the root directory specified
-	print("\n[DUPLICATES]: computing image hashes...")
-	imagePaths = list(paths.list_images(dataset_path))
 
 	# hashes will be a dictionary with the hash as the key and a list of image paths as the value
 	hashes = {}
 
 	# Loop over our image paths, generating a hash for each image. Identical images will have the same hash.
-	for imagePath in tqdm(imagePaths, desc='[DUPLICATES]'):
+	print("[DUPLICATES]: computing image hashes...")
+	for imagePath in tqdm(image_group, desc='[DUPLICATES]'):
 		image = cv2.imread(imagePath)
 		h = ih.dhash(image)
 		
 		# Add image path to hash's list, creating new list if the hash doesn't exist. Modifies the dictionary in place.
 		hashes.setdefault(h, []).append(imagePath)
 
-	print("[DUPLICATES]: computing image hashes...DONE")
 	print('[DUPLICATES]: detecting duplicate images...')
 
 	# Loop over the unique image hashes
@@ -55,5 +48,4 @@ def remove_duplicate_images(dataset_path, remove=False):
 					os.remove(p)
 					nr_dupliate_img += 1
 
-	print('[DUPLICATES]: detecting duplicate images...DONE')
 	print(f'[DUPLICATES]: {nr_dupliate_img} duplicate images removed')

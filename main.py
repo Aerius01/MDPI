@@ -1,15 +1,18 @@
 from duplicate_image_removal import remove_duplicate_images
 from depth_profiler import profile_depths
 from flatfielding_profiles import flatfielding_profiles
-from dateutil import relativedelta
 from object_detection import detect_objects
 from object_classification import classify_objects
 import os
 import argparse
+from imutils import paths
+from itertools import groupby
+from constants import BASE_FILENAME_PATTERN
 
-# Physical camera capture rate is 2.4 Hz due to data transfer from network connection to computer
-# if this is not expressed as microseconds, the comparison will not be sensitive enough to capture the time difference
-TIMESTEP = relativedelta.relativedelta(microseconds=1/2.4*1000000)
+def _get_sort_key(path):
+    filename = os.path.basename(path)
+    match = BASE_FILENAME_PATTERN.search(filename)
+    return int(match.group(2)) if match else 0
 
 def main():
     # Set up command line argument parsing
@@ -34,20 +37,44 @@ def main():
     object_detection_path = os.path.join(root_output_path, "vignettes")
     object_classification_path = os.path.join(root_output_path, "classification")
 
-    # Self-explanatory
-    remove_duplicate_images(dataset_path, remove=False)
+    # listing all images
+    image_paths = list(paths.list_images(dataset_path))
+    
+    # First group by directory, then sort each group
+    image_groups = [list(group) for key, group in groupby(sorted(image_paths, key=os.path.dirname), os.path.dirname)]
+    image_groups = [sorted(group, key=_get_sort_key) for group in image_groups]
 
-    # Add the depth value to the image file names
-    profile_depths(dataset_path, depth_profiles_path, TIMESTEP)
+    for i, group in enumerate(image_groups):
+        print(f"\n[MAIN]: Processing image group {i+1}/{len(image_groups)}: {os.path.dirname(group[0])}")
+        # Self-explanatory
+        remove_duplicate_images(group, remove=False)
 
-    # Flatfield the images
-    flatfielding_profiles(depth_profiles_path, flatfield_profiles_path)
+        # Add the depth value to the image file names
+        profiled_images = profile_depths(group, depth_profiles_path)
 
-    # Detect objects in the images
-    detect_objects(flatfield_profiles_path, object_detection_path)
+        # Flatfield the images
+        if not profiled_images:
+            try:
+                profiled_images = sorted(list(paths.list_images(depth_profiles_path)))
+            except FileNotFoundError:
+                raise FileNotFoundError(f"No depth profiles found in {depth_profiles_path}")
+        flatfielded_images = flatfielding_profiles(profiled_images, flatfield_profiles_path)
 
-    # Classify objects in the images
-    classify_objects(object_detection_path, model_path, output_path=object_classification_path)
+        # Detect objects in the images
+        if not flatfielded_images:
+            try:
+                flatfielded_images = sorted(list(paths.list_images(flatfield_profiles_path)))
+            except FileNotFoundError:
+                raise FileNotFoundError(f"No flatfielded images found in {flatfield_profiles_path}")
+        vignette_images = detect_objects(flatfielded_images, object_detection_path)
+
+        # Classify objects in the images
+        if not vignette_images:
+            try:
+                vignette_images = sorted(list(paths.list_images(object_detection_path)))
+            except FileNotFoundError:
+                raise FileNotFoundError(f"No vignette images found in {object_detection_path}")
+        classify_objects(vignette_images, object_classification_path, model_path)
 
 if __name__ == "__main__":
     main()

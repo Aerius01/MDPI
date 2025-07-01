@@ -10,10 +10,8 @@ Uses TensorFlow 1.x syntax with LRN and Dropout regularization.
 """
 
 import os
-import sys
 import pickle
 import numpy as np
-from imutils import paths
 from tools.nn.soft_max import SoftMax
 from tools.io.batch_generator import BatchGenerator
 from tools.preprocessing.image_preprocessing import ImagePreprocessor
@@ -34,7 +32,7 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 @dataclass
 class ClassificationConfig:
     """Configuration for the classification pipeline."""
-    input_path: str
+    image_group: List[str]  # List of image file paths
     model_path: str
     output_path: str = './classification'
     batch_size: int = 32
@@ -58,7 +56,6 @@ class CNNArchitecture:
         """Constructs the CNN architecture and returns placeholders."""
         # Define placeholders
         x_input = tf.compat.v1.placeholder(tf.float32, shape=[None, self.config.input_size, self.config.input_size])
-        y_pred_placeholder = tf.compat.v1.placeholder(tf.float32, shape=[None, self.nr_categories])
         keep_prob = tf.compat.v1.placeholder(tf.float32)
         
         # Build network
@@ -157,45 +154,39 @@ class InferenceEngine:
     
     def __init__(self, config: ClassificationConfig):
         self.config = config
+        self.sess = None
         self._initialize_components()
         self._setup_model()
     
     def _initialize_components(self):
         """Initialize utility classes for processing and evaluation."""
-        print('[CLASSIFICATION]: initializing batch generator...', flush=True, end='')
+        print('[CLASSIFICATION]: Initializing batch generator...')
         self.gen = BatchGenerator()
         self.pre = ImagePreprocessor()
         self.en = Entropy()
         self.lc = LeastConfidence()
         self.ms = MarginSampling()
         self.softmax = SoftMax()
-        print('DONE')
     
     def _setup_model(self):
         """Setup TensorFlow session and model."""
         tf.compat.v1.disable_eager_execution()
-        self.sess = tf.compat.v1.InteractiveSession()
+        self.sess = tf.compat.v1.Session()  # Use Session instead of InteractiveSession
         
-        print('[CLASSIFICATION]: construct classification model...', flush=True, end='')
+        print('[CLASSIFICATION]: Constructing classification model...')
         cnn = CNNArchitecture(self.config)
         self.x_input, self.keep_prob, self.y_pred = cnn.build_model()
-        print('DONE')
         
-        print('[CLASSIFICATION]: restoring classification model...', flush=True, end='')
+        print('[CLASSIFICATION]: Restoring classification model...')
         self.sess.run(tf.compat.v1.global_variables_initializer())
         saver = tf.compat.v1.train.Saver()
         saver.restore(self.sess, os.path.sep.join([self.config.model_path, "model.ckpt"]))
-        print('DONE')
     
-    def process_location(self, location_path: str) -> Dict[str, Any]:
-        """Process all images in a location and return classification results."""
-        print('[CLASSIFICATION]: listing all vignettes...', flush=True, end='')
-        image_paths = list(paths.list_images(location_path))
-        print('DONE')
+    def process_location(self, image_paths: List[str]) -> Dict[str, Any]:
+        """Process all images in the provided list and return classification results."""
         
         if len(image_paths) == 0:
-            print('[WARNING]: No vignettes where found. Please check the input path, or set input path with -input')
-            sys.exit()
+            raise ValueError("No images provided in image_paths list")
         
         # Preprocess images
         angles, images, image_mean = self.pre.image_preprocessing(image_paths, self.config.input_size)
@@ -211,7 +202,7 @@ class InferenceEngine:
         predictions = np.array([], dtype=np.float32).reshape(0, len(self.config.categories))
         epoch_step = 0
         
-        print('[CLASSIFICATION]: start vignettes classification...')
+        print('[CLASSIFICATION]: Starting vignettes classification...')
         for i in tqdm(range(int(np.ceil(num_images / self.config.batch_size))), desc='[CLASSIFICATION]'):
             batch_x = self.gen.batch_generator(
                 images=images, images_mean=image_mean, nr_images=num_images,
@@ -222,7 +213,6 @@ class InferenceEngine:
             pred = self.sess.run(self.y_pred, feed_dict={self.x_input: batch_x, self.keep_prob: 1})
             predictions = np.concatenate((predictions, pred), axis=0)
         
-        print('[CLASSIFICATION]: start vignettes classification...DONE')
         return predictions
     
     def _post_process_predictions(self, predictions: np.ndarray, image_paths: List[str], angles: List[float]) -> Dict[str, Any]:
@@ -254,6 +244,12 @@ class InferenceEngine:
             'classes': self.config.categories,
             'samples': samples
         }
+    
+    def close(self):
+        """Close the TensorFlow session to free resources."""
+        if self.sess is not None:
+            self.sess.close()
+            self.sess = None
 
 
 class OutputHandler:
@@ -262,80 +258,77 @@ class OutputHandler:
     @staticmethod
     def save_results(results: Dict[str, Any], output_path: str, filename: str):
         """Save classification results to pickle file."""
-        print('[CLASSIFICATION]: creating pickle output...', flush=True, end='')
+        print('[CLASSIFICATION]: Creating pickle output...')
         
         if not os.path.exists(output_path):
             os.makedirs(output_path)
         
         with open(os.path.sep.join([output_path, filename]), 'wb') as handle:
             pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        
-        print('DONE')
 
 
-class DirectoryProcessor:
-    """Handles directory traversal and processing coordination."""
+class SingleLocationProcessor:
+    """Handles processing of a single location directory."""
     
     def __init__(self, config: ClassificationConfig):
         self.config = config
         self.inference_engine = InferenceEngine(config)
         self.output_handler = OutputHandler()
     
-    def process_all_directories(self):
-        """Process all directories in the input path hierarchy."""
-        projects = os.listdir(self.config.input_path)
+    def process_location(self):
+        """Process the single location specified in the config."""
+        print(f'[CLASSIFICATION]: Processing {len(self.config.image_group)} images')
         
-        # Count total locations first
-        total_locations = 0
-        for project in projects:
-            project_path = os.path.sep.join([self.config.input_path, project])
-            dates = os.listdir(project_path)
-            for date in dates:
-                date_path = os.path.sep.join([project_path, date])
-                times = os.listdir(date_path)
-                for time in times:
-                    time_path = os.path.sep.join([date_path, time])
-                    locations = os.listdir(time_path)
-                    total_locations += len(locations)
+        # Check if image group has any paths
+        if not self.config.image_group:
+            raise ValueError("Image group is empty - no images to process")
         
-        print(f'[CLASSIFICATION]: Found {total_locations} locations to process')
+        # Check if all image paths exist
+        for image_path in self.config.image_group:
+            if not os.path.exists(image_path):
+                raise FileNotFoundError(f"Image path does not exist: {image_path}")
         
-        location_count = 0
-        for project in projects:
-            project_path = os.path.sep.join([self.config.input_path, project])
-            dates = os.listdir(project_path)
+        try:
+            # Process the images
+            results = self.inference_engine.process_location(self.config.image_group)
             
-            for date in dates:
-                date_path = os.path.sep.join([project_path, date])
-                times = os.listdir(date_path)
-                
-                for time in times:
-                    time_path = os.path.sep.join([date_path, time])
-                    locations = os.listdir(time_path)
-                    
-                    for location in locations:
-                        location_count += 1
-                        location_path = os.path.sep.join([time_path, location])
-                        full_path = f"{project}/{date}/{time}/{location}"
-                        print(f'\n[CLASSIFICATION]: Processing location {location_count}/{total_locations}: {full_path}')
-                        self._process_single_location(project, date, time, location, location_path)
+            # Determine output path and filename
+            # Use the directory name of the first image for the filename
+            first_image_dir = os.path.dirname(self.config.image_group[0])
+            location_name = os.path.basename(first_image_dir)
+            filename = f'{location_name}_classification.pkl'
+            
+            self.output_handler.save_results(results, self.config.output_path, filename)
+            
+            return results
+        finally:
+            # Always close the session to free resources
+            self.inference_engine.close()
+
+
+def classify_objects(image_group, output_path, model_path, batch_size=32, input_size=50, input_depth=1):
+    """Main classification function for processing a single image group.
     
-    def _process_single_location(self, project: str, date: str, time: str, location: str, location_path: str):
-        """Process a single location directory."""
-        results = self.inference_engine.process_location(location_path)
-        
-        output_path = os.path.sep.join([self.config.output_path, project, date, time])
-        filename = f'{project}_{date}_{location}_classification.pkl'
-        
-        self.output_handler.save_results(results, output_path, filename)
-
-
-def classify_objects(input_path, model_path, batch_size=32, input_size=50, input_depth=1, output_path='./classification'):
-    """Main classification function maintaining original interface."""
-    print('\n[CLASSIFICATION]: starting vignettes classification...')
+    Args:
+        image_group (List[str]): List of paths to individual image files to classify
+        output_path (str): Directory where classification results will be saved
+        model_path (str): Path to the trained model checkpoint
+        batch_size (int): Batch size for processing images
+        input_size (int): Size of input images (width=height)
+        input_depth (int): Number of channels in input images (1 for grayscale)
+    
+    Returns:
+        dict: Classification results containing predictions and uncertainty metrics
+    """
+    print('[CLASSIFICATION]: Starting vignettes classification...')
+    
+    # Reset TensorFlow state to ensure clean slate between calls
+    tf.compat.v1.reset_default_graph()
+    if tf.compat.v1.get_default_session() is not None:
+        tf.compat.v1.get_default_session().close()
     
     config = ClassificationConfig(
-        input_path=input_path,
+        image_group=image_group,
         model_path=model_path,
         batch_size=batch_size,
         input_size=input_size,
@@ -343,7 +336,7 @@ def classify_objects(input_path, model_path, batch_size=32, input_size=50, input
         output_path=output_path
     )
     
-    processor = DirectoryProcessor(config)
-    processor.process_all_directories()
+    processor = SingleLocationProcessor(config)
+    processor.process_location()
     
-    print('\n[CLASSIFICATION]: vignettes classification is DONE')
+    print('[CLASSIFICATION]: Vignettes classification completed successfully!')
