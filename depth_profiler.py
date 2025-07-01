@@ -15,7 +15,7 @@ def _get_sort_key(path):
     return int(match.group(2)) if match else 0
 
 def profile_depths(input_path, output_path, timestep):
-    print(f"[PROFILING] Starting depth matching...")
+    print(f"\n[PROFILING]: Starting depth matching...")
     
     # listing all images
     imagePaths = list(paths.list_images(input_path))
@@ -24,7 +24,7 @@ def profile_depths(input_path, output_path, timestep):
     imageGroups = [list(group) for key, group in groupby(sorted(imagePaths, key=os.path.dirname), os.path.dirname)]
     imageGroups = [sorted(group, key=_get_sort_key) for group in imageGroups]
     
-    print(f"[PROFILING] Processing {len(imageGroups)} image groups...")
+    print(f"[PROFILING]: Processing {len(imageGroups)} image groups...")
 
     for i, imageGroup in enumerate(imageGroups):
         # Get directory path and extract metadata
@@ -32,7 +32,7 @@ def profile_depths(input_path, output_path, timestep):
         _, _, project, date, time, location, filename = imagePath.split(os.path.sep)
         root_dir = os.path.dirname(imagePath)
 
-        print(f"[PROFILING] Processing group {i+1}/{len(imageGroups)}: {project}/{date}/{time}/{location} ({len(imageGroup)} images)")
+        print(f"[PROFILING]: Processing group {i+1}/{len(imageGroups)}: {project}/{date}/{time}/{location} ({len(imageGroup)} images)")
 
         # create output path
         outputPath = os.path.sep.join([output_path, project, date, time, location])
@@ -64,7 +64,7 @@ def profile_depths(input_path, output_path, timestep):
             raise ValueError(f"Could not parse datetime from filename: {filename}")
 
         # Pre-calculate all timestamps and depth values at once
-        print(f"[PROFILING] Calculating timestamps and depth values...")
+        print(f"[PROFILING]: Calculating timestamps and depth values...")
         timestamps = [image_time + (i * timestep) for i in range(len(imageGroup))]
         nearest_indices = csv.index.get_indexer(timestamps, method='nearest')
         depth_values = csv.iloc[nearest_indices]['depth'].values
@@ -74,7 +74,7 @@ def profile_depths(input_path, output_path, timestep):
         new_filenames = [os.path.join(outputPath, filename) for filename in new_filenames]
         
         # Copy files with pre-generated names (batch operation)
-        print(f"[PROFILING] Saving files...")
+        print(f"[PROFILING]: Saving files...")
         [shutil.copy2(source_path, dest_path) for source_path, dest_path in zip(imageGroup, new_filenames)]
 
-    print(f"[PROFILING] Depth matching completed successfully!")
+    print(f"[PROFILING]: Depth matching completed successfully!")

@@ -197,7 +197,7 @@ def process_image_group(image_group, output_path, group_index, total_groups):
     img_names = [Path(path).stem for path in image_group]
     project, date, time, location = parse_image_metadata(image_group[0])
     
-    print(f"[OBJECT DETECTION] Processing group {group_index+1}/{total_groups}: "
+    print(f"[OBJECT DETECTION]: Processing group {group_index+1}/{total_groups}: "
           f"{project}/{date}/{time}/{location} ({len(image_group)} images)")
     
     # Create output directory
@@ -205,19 +205,19 @@ def process_image_group(image_group, output_path, group_index, total_groups):
     group_output_path.mkdir(parents=True, exist_ok=True)
     
     # Step 1: Load and threshold images
-    print(f"[OBJECT DETECTION] Loading and thresholding...")
+    print(f"[OBJECT DETECTION]: Loading and thresholding...")
     images, img_bins = load_and_threshold_images(image_group)
     
     # Step 2: Apply overlap correction
-    print(f"[OBJECT DETECTION] Applying depth overlap correction...")
+    print(f"[OBJECT DETECTION]: Applying depth overlap correction...")
     corrected_img_bins = apply_overlap_correction(img_bins, img_names)
     
     # Step 3: Process in batches
     num_batches = int(np.ceil(len(image_group) / ProcessingConfig.BATCH_SIZE))
-    print(f"[OBJECT DETECTION] Performing object detection in {num_batches} batches of {ProcessingConfig.BATCH_SIZE} images...")
+    print(f"[OBJECT DETECTION]: Performing object detection in {num_batches} batches of {ProcessingConfig.BATCH_SIZE} images...")
     
     all_data_dfs = []
-    for j in tqdm(range(0, len(image_group), ProcessingConfig.BATCH_SIZE)):
+    for j in tqdm(range(0, len(image_group), ProcessingConfig.BATCH_SIZE), desc='[OBJECT DETECTION]'):
         batch_end = j + ProcessingConfig.BATCH_SIZE
         batch_corrected_bins = corrected_img_bins[j:batch_end]
         batch_images = images[j:batch_end]
@@ -235,13 +235,13 @@ def process_image_group(image_group, output_path, group_index, total_groups):
         combined_df = pd.concat(all_data_dfs, ignore_index=True)
         output_file = group_output_path / f'objectMeasurements_{project}_{date}_{time}_{location}{ProcessingConfig.CSV_EXTENSION}'
         combined_df.to_csv(output_file, sep=ProcessingConfig.CSV_SEPARATOR, index=False)
-        print(f"[OBJECT DETECTION] Group {group_index+1} completed. Total objects detected: {len(combined_df)}")
+        print(f"[OBJECT DETECTION]: Group {group_index+1} completed. Total objects detected: {len(combined_df)}")
     else:
-        print(f"[OBJECT DETECTION] Group {group_index+1} completed. No objects detected.")
+        print(f"[OBJECT DETECTION]: Group {group_index+1} completed. No objects detected.")
 
 def detect_objects(input_path, output_path):
     """Main function to detect objects in all image groups."""
-    print(f"[OBJECT DETECTION] Starting object detection...")
+    print(f"\n[OBJECT DETECTION]: Starting object detection...")
     
     # Group and sort images by directory
     image_paths = list(paths.list_images(input_path))
@@ -250,10 +250,10 @@ def detect_objects(input_path, output_path):
         for key, group in groupby(sorted(image_paths, key=os.path.dirname), os.path.dirname)
     ]
     
-    print(f"[OBJECT DETECTION] Processing {len(image_groups)} image groups...")
+    print(f"[OBJECT DETECTION]: Processing {len(image_groups)} image groups...")
     
     # Process each image group
     for i, image_group in enumerate(image_groups):
         process_image_group(image_group, output_path, i, len(image_groups))
     
-    print(f"[OBJECT DETECTION] Object detection completed successfully!")
+    print(f"[OBJECT DETECTION]: Object detection completed successfully!")

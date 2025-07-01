@@ -9,15 +9,14 @@ from tools.preprocessing.rotate_image import RotateImage
 class ImagePreprocessor:
     @staticmethod
     def image_preprocessing(image_paths, img_size):
-        # update report
-        print('[Progress update]: load and preprocessing images...', flush=True, end='\r')
+        print('[PREPROCESSOR]: loading and preprocessing images...')
 
         # initialize empty variable holders
         images = []
         angles = []
 
         # loop over all images
-        for image_path in tqdm(image_paths, desc='[Progress update]: Preprocessing'):
+        for image_path in tqdm(image_paths, desc='[PREPROCESSOR]'):
             # load in image
             img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
@@ -61,5 +60,5 @@ class ImagePreprocessor:
         # calculate image means
         images_mean = np.mean(images)
 
-        print('[Progress update]: load and preprocessing images...DONE')
+        print('[PREPROCESSOR]: loading and preprocessing images...DONE')
         return angles, images, images_mean

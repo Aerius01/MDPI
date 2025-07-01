@@ -9,7 +9,7 @@ NORMALIZATION_FACTOR = 235
 BATCH_SIZE = 10  # Process images in batches to reduce memory usage
 
 def flatfielding_profiles(input_path, output_path):
-    print(f"[FLATFIELDING] Starting flatfielding...")
+    print(f"\n[FLATFIELDING]: Starting flatfielding...")
     
     # Group and sort images by directory
     image_paths = list(paths.list_images(input_path))
@@ -17,7 +17,7 @@ def flatfielding_profiles(input_path, output_path):
         sorted(list(group)) 
         for key, group in groupby(sorted(image_paths, key=os.path.dirname), os.path.dirname)
     ]
-    print(f"[FLATFIELDING] Processing {len(image_groups)} image groups...")
+    print(f"[FLATFIELDING]: Processing {len(image_groups)} image groups...")
     
     for i, imageGroup in enumerate(image_groups):
         # Get image names without extension for saving later
@@ -28,20 +28,20 @@ def flatfielding_profiles(input_path, output_path):
         filename = os.path.basename(imageGroup[0])
         _, project, date, time, location = os.path.splitext(filename)[0].split('_')
 
-        print(f"[FLATFIELDING] Processing group {i+1}/{len(image_groups)}: {project}/{date}/{time}/{location} ({len(imageGroup)} images)")
+        print(f"[FLATFIELDING]: Processing group {i+1}/{len(image_groups)}: {project}/{date}/{time}/{location} ({len(imageGroup)} images)")
 
         # create output path
         outputPath = os.path.sep.join([output_path, project, date, time, location])
         os.makedirs(outputPath, exist_ok=True)
 
         # Calculate the average image to perform flatfielding
-        print(f"[FLATFIELDING] Calculating average image...")
+        print(f"[FLATFIELDING]: Calculating average image...")
         images = np.array([cv2.imread(img, cv2.IMREAD_GRAYSCALE) for img in imageGroup])
         ff = np.average(images, axis=0).astype('uint8')
 
         # Flatfield images in batches to avoid memory issues with divide and clip operations
-        print(f"[FLATFIELDING] Flatfielding images in {int(np.ceil(len(imageGroup)/BATCH_SIZE))} batches...")
-        for j in tqdm(range(0, len(imageGroup), BATCH_SIZE)):
+        print(f"[FLATFIELDING]: Flatfielding images in {int(np.ceil(len(imageGroup)/BATCH_SIZE))} batches...")
+        for j in tqdm(range(0, len(imageGroup), BATCH_SIZE), desc='[FLATFIELDING]'):
             batch_images = images[j:j + BATCH_SIZE]
             batch_names = img_names[j:j + BATCH_SIZE]
             
@@ -56,4 +56,4 @@ def flatfielding_profiles(input_path, output_path):
             # Explicitly free memory
             del flatfielded_batch
 
-    print(f"[FLATFIELDING] Flatfielding completed successfully!")
+    print(f"[FLATFIELDING]: Flatfielding completed successfully!")
