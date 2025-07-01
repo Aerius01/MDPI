@@ -203,6 +203,7 @@ class InferenceEngine:
         epoch_step = 0
         
         print('[CLASSIFICATION]: Starting vignettes classification...')
+        print(f"[CLASSIFICATION]: Processing {num_images} images in {int(np.ceil(num_images / self.config.batch_size))} batches")
         for i in tqdm(range(int(np.ceil(num_images / self.config.batch_size))), desc='[CLASSIFICATION]'):
             batch_x = self.gen.batch_generator(
                 images=images, images_mean=image_mean, nr_images=num_images,
