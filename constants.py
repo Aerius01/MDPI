@@ -5,6 +5,20 @@ from dataclasses import dataclass
 # Pre-compile regex for efficiency - matches datetime pattern in image filenames
 BASE_FILENAME_PATTERN = re.compile(r'(\d{8}_\d{6}\d{3})_(\d+)\.') 
 
+def get_image_sort_key(path: str) -> int:
+    """Extract sort key from image path based on sequence number in filename.
+    
+    Args:
+        path: Path to image file
+        
+    Returns:
+        Sequence number from filename, or 0 if no match found
+    """
+    import os
+    filename = os.path.basename(path)
+    match = BASE_FILENAME_PATTERN.search(filename)
+    return int(match.group(2)) if match else 0
+
 # Physical camera capture rate is 2.4 Hz due to data transfer from network connection to computer
 # if this is not expressed as microseconds, the comparison will not be sensitive enough to capture the time difference
 TIMESTEP = relativedelta.relativedelta(microseconds=1/2.4*1000000)

@@ -7,7 +7,7 @@ import os
 import argparse
 from imutils import paths
 from itertools import groupby
-from constants import BASE_FILENAME_PATTERN
+from constants import get_image_sort_key
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -34,7 +34,10 @@ class ImagePipeline:
     def __init__(self, config: PipelineConfig):
         self.config = config
         self.paths = config.output_paths
-        
+
+        # Create output directory if it doesn't exist
+        os.makedirs(self.config.root_output_path, exist_ok=True)
+
         # Initialize processors
         self.duplicate_detector = DuplicateDetector(DuplicateConfig(remove=False, show_montages=False))
         self.depth_profiler = DepthProfiler()
@@ -43,9 +46,7 @@ class ImagePipeline:
     
     def _get_sort_key(self, path: str) -> int:
         """Extract sort key from image path."""
-        filename = os.path.basename(path)
-        match = BASE_FILENAME_PATTERN.search(filename)
-        return int(match.group(2)) if match else 0
+        return get_image_sort_key(path)
     
     def _get_or_fallback_images(self, images: Optional[List[str]], fallback_path: str) -> List[str]:
         """Get images list or fallback to directory listing with error handling."""
@@ -61,7 +62,7 @@ class ImagePipeline:
         print(f"\n[MAIN]: Processing image group {group_index+1}/{total_groups}: {os.path.dirname(group[0])}")
         
         # Pipeline stages with fallback handling
-        self.duplicate_detector.detect_and_process(group)
+        self.duplicate_detector.process_group(group)
         
         profiled_images = self.depth_profiler.process_group(group, self.paths['depth_profiles'])
         profiled_images = self._get_or_fallback_images(profiled_images, self.paths['depth_profiles'])
@@ -90,7 +91,7 @@ class ImagePipeline:
 
 def main():
     parser = argparse.ArgumentParser(description='Process images for depth profiling, flatfielding, object detection, and classification.')
-    parser.add_argument('-o', '--root_output_path', default=".", help='Root output directory path (default: ./output)')
+    parser.add_argument('-o', '--root_output_path', default="./output", help='Root output directory path (default: ./output)')
     parser.add_argument('-d', '--dataset_path', default="./profiles", help='Dataset directory path (default: ./profiles)')
     parser.add_argument('-m', '--model_path', default="./model", help='Model directory path (default: ./model)')
     

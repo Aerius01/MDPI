@@ -8,6 +8,9 @@ from pathlib import Path
 from constants import CONSTANTS
 from typing import List, Tuple
 from dataclasses import dataclass
+import os
+import argparse
+from cli_utils import CommonCLI
 
 @dataclass
 class DetectionConfig:
@@ -259,3 +262,38 @@ class ObjectDetector:
         
         # Return sorted list of output image file paths
         return sorted(all_output_paths)
+
+def main():
+    """Command line interface for object detection."""    
+    parser = argparse.ArgumentParser(description='Process images for object detection.')
+    parser.add_argument('-i', '--image_folder', required=True, help='Path to the folder containing images to process')
+    parser.add_argument('-o', '--output_path', default="./output/vignettes", help='Root output directory path where results will be saved')
+    
+    args = parser.parse_args()
+    
+    try:
+        # Get image group from folder
+        image_group = CommonCLI.get_image_group_from_folder(args.image_folder)
+        
+        # Validate output path
+        output_path = CommonCLI.validate_output_path(args.output_path)
+        
+        # Process the image group
+        detector = ObjectDetector()
+        result_paths = detector.process_group(image_group, output_path)
+        
+        if result_paths:
+            # Ensure the path shows as relative with leading './' if it's a relative path
+            result_dir = os.path.dirname(result_paths[0])
+            if not os.path.isabs(result_dir):
+                result_dir = os.path.join('.', result_dir)
+            print(f"[DETECTION]: Results saved to: {result_dir}")
+        
+    except Exception as e:
+        print(f"[DETECTION]: Error: {str(e)}")
+        return 1
+    
+    return 0
+
+if __name__ == "__main__":
+    exit(main())

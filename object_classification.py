@@ -21,6 +21,8 @@ from tools.metrics.margin_sampling import MarginSampling
 from tqdm import tqdm
 from dataclasses import dataclass
 from typing import List, Tuple, Dict, Any
+import argparse
+from cli_utils import CommonCLI
 
 # Suppress TensorFlow logging messages - MUST be set before importing tensorflow
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=all, 1=no INFO, 2=no INFO/WARN, 3=no INFO/WARN/ERROR
@@ -341,3 +343,44 @@ def classify_objects(image_group, output_path, model_path, batch_size=32, input_
     processor.process_location()
     
     print('[CLASSIFICATION]: Vignettes classification completed successfully!')
+
+
+def main():
+    """Command line interface for object classification."""  
+    parser = argparse.ArgumentParser(description='Classify detected objects using CNN.')
+    parser.add_argument('-i', '--image_folder', required=True, help='Path to the folder containing images to process')
+    parser.add_argument('-o', '--output_path', default="./output/classified", help='Root output directory path where results will be saved')
+    parser.add_argument('-m', '--model_path', required=True, help='Path to the trained model directory')
+    parser.add_argument('-b', '--batch_size', type=int, default=32, help='Batch size for processing (default: 32)')
+    parser.add_argument('-s', '--input_size', type=int, default=50, help='Input image size (default: 50)')
+    parser.add_argument('-d', '--input_depth', type=int, default=1, help='Input image depth/channels (default: 1)')
+    
+    args = parser.parse_args()
+    
+    try:
+        # Get image group from folder
+        image_group = CommonCLI.get_image_group_from_folder(args.image_folder)
+        
+        # Validate output path
+        output_path = CommonCLI.validate_output_path(args.output_path)
+        
+        # Validate model path
+        if not os.path.exists(args.model_path):
+            raise FileNotFoundError(f"Model path does not exist: {args.model_path}")
+        
+        # Process the image group
+        classify_objects(image_group, output_path, args.model_path, 
+                        batch_size=args.batch_size, input_size=args.input_size,
+                        input_depth=args.input_depth)
+        
+        print(f"[CLASSIFICATION]: Classification results saved to: {output_path}")
+        
+    except Exception as e:
+        print(f"[CLASSIFICATION]: Error: {str(e)}")
+        return 1
+    
+    return 0
+
+
+if __name__ == "__main__":
+    exit(main())

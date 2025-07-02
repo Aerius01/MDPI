@@ -2,9 +2,11 @@ import os
 import pandas as pd
 import shutil
 from datetime import datetime
-from constants import BASE_FILENAME_PATTERN, TIMESTEP, CONSTANTS
+from constants import BASE_FILENAME_PATTERN, TIMESTEP, CONSTANTS, get_image_sort_key
 from typing import List, Tuple
 from dataclasses import dataclass
+import argparse
+from cli_utils import CommonCLI
 
 @dataclass
 class ProfileConfig:
@@ -120,3 +122,35 @@ class DepthProfiler:
         
         print(f"[PROFILING]: Depth matching completed successfully!")
         return sorted(output_filenames)
+
+def main():
+    """Command line interface for depth profiling."""
+    parser = argparse.ArgumentParser(description='Process images for depth profiling.')
+    parser.add_argument('-i', '--image_folder', required=True, help='Path to the folder containing images to process')
+    parser.add_argument('-o', '--output_path', default="./output/depth_profiles", help='Root output directory path where results will be saved')
+    
+    args = parser.parse_args()
+
+    try:
+        # Get image group from folder
+        image_group = CommonCLI.get_image_group_from_folder(args.image_folder, get_image_sort_key)
+        
+        # Validate output path
+        output_path = CommonCLI.validate_output_path(args.output_path)
+        
+        # Process the image group
+        profiler = DepthProfiler()
+        result_paths = profiler.process_group(image_group, output_path)
+        
+        # Print results
+        if result_paths:
+            print(f"[PROFILING]: Results saved to: {os.path.dirname(result_paths[0])}")
+        
+    except Exception as e:
+        print(f"[PROFILING]: Error: {str(e)}")
+        return 1
+    
+    return 0
+
+if __name__ == "__main__":
+    exit(main())

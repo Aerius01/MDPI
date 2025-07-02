@@ -5,6 +5,8 @@ from tqdm import tqdm
 from constants import CONSTANTS
 from typing import List
 from dataclasses import dataclass
+import argparse
+from cli_utils import CommonCLI
 
 @dataclass
 class FlatfieldConfig:
@@ -82,3 +84,34 @@ class FlatfieldProcessor:
         
         print(f"[FLATFIELDING]: Flatfielding completed successfully!")
         return sorted(all_output_paths)
+
+def main():
+    """Command line interface for flatfielding."""  
+    parser = argparse.ArgumentParser(description='Process images for flatfielding.')
+    parser.add_argument('-i', '--image_folder', required=True, help='Path to the folder containing images to process')
+    parser.add_argument('-o', '--output_path', default="./output/flatfield_profiles", help='Root output directory path where results will be saved')
+    
+    args = parser.parse_args()
+    
+    try:
+        # Get image group from folder
+        image_group = CommonCLI.get_image_group_from_folder(args.image_folder)
+        
+        # Validate output path
+        output_path = CommonCLI.validate_output_path(args.output_path)
+        
+        # Process the image group
+        processor = FlatfieldProcessor()
+        result_paths = processor.process_group(image_group, output_path)
+        
+        if result_paths:
+            print(f"[FLATFIELDING]: Results saved to: {os.path.dirname(result_paths[0])}")
+        
+    except Exception as e:
+        print(f"[FLATFIELDING]: Error: {str(e)}")
+        return 1
+    
+    return 0
+
+if __name__ == "__main__":
+    exit(main())
