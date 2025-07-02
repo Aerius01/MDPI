@@ -1,13 +1,13 @@
-from duplicate_image_removal import DuplicateDetector, DuplicateConfig
-from depth_profiler import DepthProfiler
-from flatfielding_profiles import FlatfieldProcessor
-from object_detection import ObjectDetector
-from object_classification import classify_objects
+from modules.duplicate_detection import DuplicateDetector, DuplicateConfig
+from modules.depth_profiling import DepthProfiler
+from modules.flatfielding import FlatfieldProcessor
+from modules.object_detection import ObjectDetector
+from modules.object_classification import classify_objects
 import os
 import argparse
 from imutils import paths
 from itertools import groupby
-from constants import get_image_sort_key
+from modules.common.constants import get_image_sort_key
 from dataclasses import dataclass
 from typing import List, Optional
 

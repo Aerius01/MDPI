@@ -1,9 +1,6 @@
 # Ignore everything in the profiles folder
 profiles/
-depth_profiles/
-flatfield_profiles/
-vignettes/
-classification/
+output/
 
 # Python
 __pycache__/

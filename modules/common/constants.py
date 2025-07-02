@@ -72,4 +72,4 @@ class ProcessingConstants:
     IMAGE_HEIGHT_PIXELS: int = 2048
 
 # Global instance for easy access
-CONSTANTS = ProcessingConstants()
+CONSTANTS = ProcessingConstants() 
