@@ -31,7 +31,7 @@ class ProcessingConstants:
     # Batch processing
     BATCH_SIZE: int = 10
     
-    # Flatfielding
+    # Empirical flatfielding factor --> set by Tim W. & Jens N.
     NORMALIZATION_FACTOR: int = 235
     
     # File formats
@@ -51,9 +51,9 @@ class ProcessingConstants:
     THRESHOLD_VALUE: int = 190
     THRESHOLD_MAX: int = 255
     
-    # Object size filtering
+    # Object size filtering --> the pixel areal limit required for us to identify the object, will need to change with MDPI
     MIN_OBJECT_SIZE: int = 75
-    MAX_OBJECT_SIZE: int = 5000
+    MAX_OBJECT_SIZE: int = 5000 # potentially obsolete
     
     # Region filtering criteria
     MAX_ECCENTRICITY: float = 0.97
