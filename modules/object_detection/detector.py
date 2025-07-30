@@ -104,9 +104,17 @@ class ObjectDetector:
         # Save results
         if all_data_dfs:
             combined_df = pd.concat(all_data_dfs, ignore_index=True)
-            output_file = os.path.join(group_output_path, f'objectMeasurements_{project}_{date}_{time}_{location}{self.config.csv_extension}')
-            combined_df.to_csv(output_file, sep=self.config.csv_separator, index=False)
+            
+            # Save CSV file
+            csv_output_file = os.path.join(group_output_path, f'objectMeasurements_{project}_{date}_{time}_{location}{self.config.csv_extension}')
+            combined_df.to_csv(csv_output_file, sep=self.config.csv_separator, index=False)
+            
+            # Save text file (space-separated, like original codebase)
+            txt_output_file = os.path.join(group_output_path, f'objectMeasurements_{project}_{date}_{time}_{location}.txt')
+            combined_df.to_csv(txt_output_file, sep=' ', index=False)
+            
             print(f"[DETECTION]: Detection completed successfully! Total objects detected: {len(combined_df)}")
+            print(f"[DETECTION]: Saved results to {csv_output_file} and {txt_output_file}")
         else:
             print(f"[DETECTION]: Detection completed. No objects detected.")
         
