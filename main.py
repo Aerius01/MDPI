@@ -1,5 +1,5 @@
 from modules.duplicate_detection import DuplicateDetector, DuplicateConfig
-from modules.depth_profiling import DepthProfiler
+from modules.depth_profiling import DepthProfiler, ProfileConfig
 from modules.flatfielding import FlatfieldProcessor
 from modules.object_detection import ObjectDetector
 from modules.object_classification import classify_objects
@@ -14,6 +14,7 @@ from typing import List, Optional
 @dataclass
 class PipelineConfig:
     """Centralized configuration for the processing pipeline."""
+    capture_rate: float
     root_output_path: str
     dataset_path: str
     model_path: str
@@ -40,7 +41,7 @@ class ImagePipeline:
 
         # Initialize processors
         self.duplicate_detector = DuplicateDetector(DuplicateConfig(remove=False, show_montages=False))
-        self.depth_profiler = DepthProfiler()
+        self.depth_profiler = DepthProfiler(ProfileConfig(capture_rate=config.capture_rate))
         self.flatfield_processor = FlatfieldProcessor()
         self.object_detector = ObjectDetector()
     
@@ -91,12 +92,13 @@ class ImagePipeline:
 
 def main():
     parser = argparse.ArgumentParser(description='Process images for depth profiling, flatfielding, object detection, and classification.')
+    parser.add_argument('-c', '--capture-rate', type=float, required=True, help='The image capture rate in hertz (Hz) of the MDPI')
     parser.add_argument('-o', '--root_output_path', default="./output", help='Root output directory path (default: ./output)')
     parser.add_argument('-d', '--dataset_path', default="./profiles", help='Dataset directory path (default: ./profiles)')
     parser.add_argument('-m', '--model_path', default="./model", help='Model directory path (default: ./model)')
     
     args = parser.parse_args()
-    config = PipelineConfig(args.root_output_path, args.dataset_path, args.model_path)
+    config = PipelineConfig(args.capture_rate, args.root_output_path, args.dataset_path, args.model_path)
     
     pipeline = ImagePipeline(config)
     pipeline.run()

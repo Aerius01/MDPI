@@ -5,6 +5,7 @@ from typing import List
 @dataclass
 class ProfileConfig:
     """Configuration for depth profiling."""
+    capture_rate: float
     csv_separator: str = CONSTANTS.CSV_SEPARATOR
     csv_header_row: int = CONSTANTS.CSV_HEADER_ROW
     csv_columns: List[int] = None

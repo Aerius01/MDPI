@@ -59,6 +59,9 @@ class FlatfieldProcessor:
         # Calculate the average image and load all images
         flatfield_image, images = self._calculate_average_image(image_group)
         
+        # Prevent division by zero errors by replacing 0s with 1s in the flatfield image
+        flatfield_image[flatfield_image == 0] = 1
+        
         # Process images in batches
         all_output_paths = []
         num_batches = int(np.ceil(len(image_group) / self.config.batch_size))

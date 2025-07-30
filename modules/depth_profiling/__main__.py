@@ -17,9 +17,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python -m modules.depth_profiling -i ./raw_images
-  python -m modules.depth_profiling -i ./raw_images -o ./output/depth_profiles --depth-multiplier 5.0
-  python -m modules.depth_profiling -i ./raw_images -o ./output/depth_profiles --csv-separator ","
+  python -m modules.depth_profiling -i ./raw_images -c 2.4
+  python -m modules.depth_profiling -i ./raw_images -o ./output/depth_profiles -c 2.4 --depth-multiplier 5.0
+  python -m modules.depth_profiling -i ./raw_images -o ./output/depth_profiles -c 2.4 --csv-separator ","
         """
     )
     
@@ -27,6 +27,8 @@ Examples:
                         help='Input directory containing images and CSV depth data')
     parser.add_argument('-o', '--output', default='./output/depth_profiles',
                         help='Top-level output directory for depth-profiled images')
+    parser.add_argument('-c', '--capture-rate', type=float, required=True,
+                        help='The image capture rate in hertz (Hz) of the MDPI')
     parser.add_argument('--csv-separator', default=';',
                         help='CSV separator character (default: ;)')
     parser.add_argument('--csv-header-row', type=int, default=6,
@@ -52,6 +54,7 @@ Examples:
         
         # Configure depth profiler
         config = ProfileConfig(
+            capture_rate=args.capture_rate,
             csv_separator=args.csv_separator,
             csv_header_row=args.csv_header_row,
             csv_columns=args.csv_columns,

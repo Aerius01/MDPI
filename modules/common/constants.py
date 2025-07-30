@@ -2,6 +2,12 @@ import re
 from dateutil import relativedelta
 from dataclasses import dataclass
 
+def get_timestep_from_rate(capture_rate: float) -> relativedelta.relativedelta:
+    """Calculate timestep from capture rate in Hz."""
+    if capture_rate <= 0:
+        raise ValueError("Capture rate must be a positive number.")
+    return relativedelta.relativedelta(microseconds=1/capture_rate*1000000)
+
 # Pre-compile regex for efficiency - matches datetime pattern in image filenames
 BASE_FILENAME_PATTERN = re.compile(r'(\d{8}_\d{6}\d{3})_(\d+)\.') 
 
@@ -18,10 +24,6 @@ def get_image_sort_key(path: str) -> int:
     filename = os.path.basename(path)
     match = BASE_FILENAME_PATTERN.search(filename)
     return int(match.group(2)) if match else 0
-
-# Physical camera capture rate is 2.4 Hz due to data transfer from network connection to computer
-# if this is not expressed as microseconds, the comparison will not be sensitive enough to capture the time difference
-TIMESTEP = relativedelta.relativedelta(microseconds=1/2.4*1000000)
 
 @dataclass(frozen=True)
 class ProcessingConstants:
@@ -42,7 +44,7 @@ class ProcessingConstants:
     CSV_HEADER_ROW: int = 6
     CSV_SKIPFOOTER: int = 1
     
-    # Depth profiling
+    # Depth profiling: convert depth values to meters
     DEPTH_MULTIPLIER: float = 10.0
     
     # Object detection thresholding
@@ -68,7 +70,8 @@ class ProcessingConstants:
     
     # Depth overlap correction
     DEPTH_MULTIPLIER_CM: int = 100
-    IMAGE_HEIGHT_CM: float = 4.3
+    # The MDPI is placed horizontally as it moves through the water column, meaning that images are vertical. 4.3 cm is the height of the field of view.
+    IMAGE_HEIGHT_CM: float = 4.3 
     IMAGE_HEIGHT_PIXELS: int = 2048
 
 # Global instance for easy access

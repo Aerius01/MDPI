@@ -1,6 +1,6 @@
 import os
 import shutil
-from modules.common.constants import TIMESTEP, CONSTANTS
+from modules.common.constants import get_timestep_from_rate, CONSTANTS
 from typing import List
 from .config import ProfileConfig
 from .metadata_extractor import MetadataExtractor
@@ -13,6 +13,7 @@ class DepthProfiler:
         self.config = config or ProfileConfig()
         self.metadata_extractor = MetadataExtractor()
         self.csv_processor = CSVProcessor(self.config)
+        self.timestep = get_timestep_from_rate(self.config.capture_rate)
     
     def _find_csv_file(self, directory: str) -> str:
         """Find CSV file in directory."""
@@ -51,7 +52,7 @@ class DepthProfiler:
         
         # Calculate timestamps and depths
         image_time = self.metadata_extractor.parse_datetime_from_filename(filename)
-        timestamps = [image_time + (i * TIMESTEP) for i in range(len(image_group))]
+        timestamps = [image_time + (i * self.timestep) for i in range(len(image_group))]
         nearest_indices = csv_data.index.get_indexer(timestamps, method='nearest')
         depth_values = csv_data.iloc[nearest_indices]['depth'].values
         

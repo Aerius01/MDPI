@@ -76,7 +76,7 @@ class ObjectDetector:
         group_output_path = os.path.join(output_path, project, date, time, location)
         os.makedirs(group_output_path, exist_ok=True)
         
-        # Step 1: Load and threshold images
+        # Step 1: Load and threshold images, producing binary images
         print(f"[DETECTION]: Loading and thresholding...")
         images, img_bins = self._load_and_threshold_images(image_group)
         
