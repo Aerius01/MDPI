@@ -8,8 +8,6 @@ import os
 import glob
 import pandas as pd
 import numpy as np
-import warnings
-warnings.filterwarnings('ignore')
 
 # Custom functions equivalent to R tools
 
@@ -17,6 +15,7 @@ def depth_bin(depth, bin_sequence):
     """
     Python equivalent of DepthBin.R
     Assigns a depth value to the nearest bin in the sequence.
+    Returns an index.
     """
     bin_sequence = np.array(bin_sequence)
     min_idx = np.argmin(np.abs(depth - bin_sequence))
@@ -24,7 +23,10 @@ def depth_bin(depth, bin_sequence):
     if bin_sequence[min_idx] > depth:
         return min_idx
     else:
-        return min_idx + 1
+        if min_idx + 1 < len(bin_sequence):
+            return min_idx + 1
+        else:
+            return min_idx
 
 def depth_bin_offset(bin_sequence):
     """
@@ -63,24 +65,26 @@ def get_concentration_data(data, bin_size, depth_bins, groups):
     for group in groups:
         # Count individuals per depth bin
         data_subset = data[data['label'] == group]
-        counts = []
+        counts = np.zeros(len(depth_bins), dtype=int)
         
-        for bin_depth in depth_bins:
+        for i, bin_depth in enumerate(depth_bins):
             count = len(data_subset[data_subset['depth_bin'] == bin_depth])
-            counts.append(count)
-        
-        # Convert counts list to numpy array (equivalent to unlist in R)
-        counts = np.array(counts)
+            counts[i] = count
         
         # Calculate concentrations [ind/l]
         concentrations = calculate_concentration(counts, bin_size)
         
+        # Extract common metadata once
+        metadata = {
+            'project': data_subset['project'].iloc[0],
+            'date': data_subset['date'].iloc[0],
+            'time': data_subset['time'].iloc[0],
+            'replicate': data_subset['replicate'].iloc[0]
+        }
+        
         # Create results DataFrame
         results_df = pd.DataFrame({
-            'project': [data_subset['project'].iloc[0]] * len(depth_bins),
-            'date': [data_subset['date'].iloc[0]] * len(depth_bins),
-            'time': [data_subset['time'].iloc[0]] * len(depth_bins),
-            'replicate': [data_subset['replicate'].unique()[0]] * len(depth_bins),
+            **{col: [val] * len(depth_bins) for col, val in metadata.items()},
             'depth': np.round(depth_bins, decimals=2),
             'plot_depth': np.round(depth_bin_offset(depth_bins), decimals=2),
             'label': [group] * len(depth_bins),
@@ -123,7 +127,7 @@ def calculate_concentration_data(csv_paths, output_path, max_depth, bin_size):
         project = data['project'].iloc[0]
         date = data['date'].iloc[0]
         time = data['time'].iloc[0]
-        repl = data['replicate'].unique()[0]
+        repl = data['replicate'].iloc[0]
         
         # Christian - equivalent to substring(basename(csv),1,3)
         encl = os.path.basename(csv)[:3]

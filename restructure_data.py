@@ -1,9 +1,8 @@
 import argparse
-import os
 from pathlib import Path
 import pandas as pd
-import re
-
+from modules.common import match_files_by_lcs
+from typing import List
 def data_restructuring(data, column, separator=r'([/\\_])', column_names=None, treatment=False):
     """
     Python equivalent of the R DataRestructuring function.
@@ -27,7 +26,6 @@ def data_restructuring(data, column, separator=r'([/\\_])', column_names=None, t
     
     # Map the parts to the correct columns based on filename structure:
     # depth_project_date_time_location_replicate
-    # 0     1      2     3     4        5
     data['depth'] = filename_parts[0]
     data['project'] = filename_parts[1]
     data['date'] = filename_parts[2]
@@ -50,21 +48,6 @@ def data_restructuring(data, column, separator=r'([/\\_])', column_names=None, t
     
     return data
 
-def longest_common_substring(s1: str, s2: str) -> str:
-    """Finds the longest common substring between two strings."""
-    m = [[0] * (1 + len(s2)) for _ in range(1 + len(s1))]
-    longest, x_longest = 0, 0
-    for x in range(1, 1 + len(s1)):
-        for y in range(1, 1 + len(s2)):
-            if s1[x - 1] == s2[y - 1]:
-                m[x][y] = m[x - 1][y - 1] + 1
-                if m[x][y] > longest:
-                    longest = m[x][y]
-                    x_longest = x
-            else:
-                m[x][y] = 0
-    return s1[x_longest - longest: x_longest]
-
 def find_files(folder: Path, subfolder_name: str, extension: str):
     """Finds all files with a given extension in a specific subfolder."""
     found_files = []
@@ -73,63 +56,8 @@ def find_files(folder: Path, subfolder_name: str, extension: str):
             found_files.extend(subfolder.rglob(f"*.{extension}"))
     return found_files
 
-def main():
-    """Main function to find and print file paths."""
-    parser = argparse.ArgumentParser(description="Restructure data by finding classification and vignette files.")
-    parser.add_argument("-i", "--input_folder", type=Path, required=True, help="Input folder to search for data.")
-    parser.add_argument("-o", "--output_folder", type=Path, required=True, help="Output folder to save restructured data.")
-    args = parser.parse_args()
-
-    input_path = args.input_folder
-    output_path = args.output_folder
-    output_path.mkdir(parents=True, exist_ok=True)
-
-    if not input_path.is_dir():
-        print(f"Error: Input folder not found at {input_path}")
-        return
-
-    classification_files = find_files(input_path, "classification", "csv")
-    vignette_files = find_files(input_path, "vignettes", "csv")
-
-    # Determine the smaller list to be the "root" for matching
-    root_files = classification_files
-    other_files = vignette_files
-    # Swap if vignettes are fewer, to iterate over the smaller list
-    if len(vignette_files) < len(classification_files):
-        root_files, other_files = other_files, root_files
-
-    potential_matches = []
-    for root_file in root_files:
-        best_match = None
-        max_lcs = -1
-        for other_file in other_files:
-            lcs = longest_common_substring(root_file.stem, other_file.stem)
-            if len(lcs) > max_lcs:
-                max_lcs = len(lcs)
-                best_match = other_file
-        
-        if best_match:
-            # The order of the pair in the tuple depends on which list was the root
-            if len(vignette_files) < len(classification_files):
-                 # root is vignettes, so (v_file, c_file) -> store as (c_file, v_file)
-                potential_matches.append((max_lcs, best_match, root_file))
-            else:
-                # root is classifications, so (c_file, v_file)
-                potential_matches.append((max_lcs, root_file, best_match))
-
-    # Sort potential matches by LCS score, descending
-    potential_matches.sort(key=lambda x: x[0], reverse=True)
-
-    matched_pairs = []
-    used_c_files = set()
-    used_v_files = set()
-
-    for _, c_file, v_file in potential_matches:
-        if c_file not in used_c_files and v_file not in used_v_files:
-            matched_pairs.append((c_file, v_file))
-            used_c_files.add(c_file)
-            used_v_files.add(v_file)
-
+def restructure_data(classification_files: List[Path], vignette_files: List[Path], output_path: Path):
+    matched_pairs = match_files_by_lcs(classification_files, vignette_files)
     print(f"Found {len(matched_pairs)} file pairs to process.")
 
     for c_file, v_file in matched_pairs:
@@ -162,9 +90,22 @@ def main():
         merged_df.to_csv(file_path, index=False)
         print(f"Successfully processed and saved data to {file_path}")
 
-        # except Exception as e:
-        #     print(f"Error processing pair ({c_file}, {v_file}): {e}")
+def wrapper(input_path: Path):
+    if not input_path.is_dir():
+        print(f"Error: Input folder not found at {input_path}")
+        return
+    
+    output_path = Path(input_path) / 'restructured'
+    output_path.mkdir(parents=True, exist_ok=True)
 
+    classification_files = find_files(input_path, "classification", "csv")
+    vignette_files = find_files(input_path, "vignettes", "csv")
+
+    restructure_data(classification_files, vignette_files, output_path)
 
 if __name__ == "__main__":
-    main() 
+    parser = argparse.ArgumentParser(description='Restructure data files')
+    parser.add_argument('-i', '--input', type=str, required=True, help='Input directory path')
+    args = parser.parse_args()
+    
+    wrapper(Path(args.input)) 
