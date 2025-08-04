@@ -31,9 +31,15 @@ class SingleLocationProcessor:
             # Determine output path and filename - get last 4 directories and filename
             path_parts = self.config.image_group[0].split(os.path.sep)
             project, date, time, location = path_parts[-5:-1]  # Last 4 directories
-            filename = f'{project}_{date}_{time}_{location}_classification.pkl'
+            base_filename = f'{project}_{date}_{time}_{location}_classification'
             
-            self.output_handler.save_results(results, self.config.output_path, filename)
+            # Save results in pickle format
+            pkl_filename = f'{base_filename}.pkl'
+            self.output_handler.save_results(results, self.config.output_path, pkl_filename)
+
+            # Save results in CSV format
+            csv_filename = f'{base_filename}.csv'
+            self.output_handler.save_csv_results(results, self.config.output_path, csv_filename)
             
             return results
         finally:

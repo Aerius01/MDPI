@@ -2,6 +2,9 @@
 profiles/
 output/
 
+# Ignore MDPI_R folder and all subfiles and directories
+MDPI_R/
+
 # Python
 __pycache__/
 *.py[cod]
