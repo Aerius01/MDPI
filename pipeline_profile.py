@@ -2,6 +2,7 @@ import datetime
 import os
 from pathlib import Path
 from typing import Union, List
+import pandas as pd
 from modules.common.parser import parse_path_metadata, parse_file_metadata, find_single_csv_file
 
 class Profile:
@@ -19,6 +20,7 @@ class Profile:
         self.output_folder = Path(output_folder).resolve()
         self.output_folder.mkdir(parents=True, exist_ok=True)
         self.deduplicated_imgs: List[str] = []
+        self.depth_mapping_df: pd.DataFrame = None
         
         path_metadata = parse_path_metadata(self.directory_path)
         self.project = path_metadata["project"]
@@ -44,3 +46,12 @@ class Profile:
         """
         remaining_files = sorted(list(set(self.raw_imgs) - set(removed_paths)))
         self.deduplicated_imgs = remaining_files 
+
+    def set_depth_mapping_df(self, depth_df: pd.DataFrame):
+        """
+        Sets the depth DataFrame for the profile.
+
+        Args:
+            depth_df: A pandas DataFrame containing depth information.
+        """
+        self.depth_mapping_df = depth_df 

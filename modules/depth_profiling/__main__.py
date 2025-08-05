@@ -9,8 +9,8 @@ from pathlib import Path
 from modules.common.cli_utils import CommonCLI
 from modules.common.parser import parse_path_metadata, parse_file_metadata, find_single_csv_file
 from modules.common.file_utils import save_csv_data
-from .config import ProfileConfig
 from .profiler import DepthProfiler
+import datetime
 
 def main():
     parser = argparse.ArgumentParser(
@@ -19,28 +19,16 @@ def main():
         epilog="""
 Examples:
   python -m modules.depth_profiling -i ./raw_images -c 2.4
-  python -m modules.depth_profiling -i ./raw_images -o ./output/depth_profiles -c 2.4 --depth-multiplier 5.0
-  python -m modules.depth_profiling -i ./raw_images -o ./output/depth_profiles -c 2.4 --csv-separator ","
+  python -m modules.depth_profiling -i ./raw_images -o ./output -c 2.4
         """
     )
     
     parser.add_argument('-i', '--input', required=True,
-                        help='Input directory containing images and CSV depth data')
-    parser.add_argument('-o', '--output', default='./output/depth_profiles',
-                        help='Top-level output directory for the image-depth mapping .csv ')
+                        help='Input directory containing raw MDPI images and the pressure sensor (depth) data .csv file')
+    parser.add_argument('-o', '--output', default='./output',
+                        help='The root output directory for the image-depth mapping csv file. The full path will be <output_directory>/project/date/cycle/location/depth_profiles.csv')
     parser.add_argument('-c', '--capture-rate', type=float, required=True,
                         help='The image capture rate in hertz (Hz) of the MDPI')
-    parser.add_argument('--csv-separator', default=';',
-                        help='CSV separator character (default: ;)')
-    parser.add_argument('--csv-header-row', type=int, default=6,
-                        help='CSV header row index (default: 6)')
-    parser.add_argument('--csv-skipfooter', type=int, default=1,
-                        help='Number of CSV footer rows to skip (default: 1)')
-    parser.add_argument('--depth-multiplier', type=float, default=10.0,
-                        help='Depth multiplier for CSV values (default: 10.0)')
-    parser.add_argument('--csv-columns', nargs=2, type=int, default=[0, 1],
-                        metavar=('TIME_COL', 'DEPTH_COL'),
-                        help='CSV column indices for time and depth (default: 0 1)')
     
     args = parser.parse_args()
     
@@ -59,7 +47,9 @@ Examples:
         
         # Extract metadata for processing and saving
         recording_start_time = file_metadata["recording_start_time"]
-        
+        recording_start_date = path_metadata["recording_start_date"]
+        start_datetime = datetime.datetime.combine(recording_start_date, recording_start_time)
+
         metadata = {
             "project": path_metadata["project"],
             "date_str": path_metadata["date_str"],
@@ -68,24 +58,14 @@ Examples:
             "time": recording_start_time.strftime("%H%M%S")
         }
         
-        print(f"[PROFILING]: Processing group: {metadata['project']}/{metadata['date']}/{metadata['cycle']}/{metadata['location']}")
-        
-        # Configure depth profiler
-        config = ProfileConfig(
-            capture_rate=args.capture_rate,
-            csv_separator=args.csv_separator,
-            csv_header_row=args.csv_header_row,
-            csv_columns=args.csv_columns,
-            csv_skipfooter=args.csv_skipfooter,
-            depth_multiplier=args.depth_multiplier
-        )
+        print(f"[PROFILING]: Processing group: {metadata['project']}/{metadata['date_str']}/{metadata['cycle']}/{metadata['location']}")
         
         # Run depth profiling
-        profiler = DepthProfiler(config)
-        df = profiler.process_depth_data(image_paths, pressure_sensor_csv_path, recording_start_time)
+        profiler = DepthProfiler()
+        df = profiler.map_images_to_depths(image_paths, pressure_sensor_csv_path, start_datetime, args.capture_rate)
         
         if df is not None:
-            output_file = save_csv_data(df, metadata, output_path, "depth_profiling_output")
+            output_file = save_csv_data(df, metadata, output_path, "depth_profiles")
             if output_file:
                 print(f"[PROFILING]: Processing completed successfully!")
                 print(f"[PROFILING]: 1 file saved to {output_file}")

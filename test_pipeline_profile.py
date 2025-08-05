@@ -4,9 +4,9 @@ import os
 from pipeline_profile import Profile
 from modules.duplicate_detection import DuplicateDetector, DuplicateConfig
 from modules.depth_profiling.profiler import DepthProfiler
-from modules.depth_profiling.config import ProfileConfig as DepthProfileConfig
 from modules.common.file_utils import save_csv_data
 from datetime import datetime
+from modules.common.constants import CONSTANTS
 
 def main():
     """
@@ -21,6 +21,8 @@ def main():
                         help='Input directory for the profile.')
     parser.add_argument('-o', '--output', required=True,
                         help='Output directory for the profile.')
+    parser.add_argument('-c', '--capture-rate', type=float, default=2.4,
+                        help='The image capture rate in hertz (Hz).')
     
     args = parser.parse_args()
     
@@ -38,17 +40,19 @@ def main():
         
         # Configure and run depth profiling
         print("Running depth profiling...")
-        depth_config = DepthProfileConfig(capture_rate=2.4)
-        depth_profiler = DepthProfiler(depth_config)
+        depth_profiler = DepthProfiler()
         
         # Combine date and time for a full datetime object
         start_datetime = datetime.combine(profile.recording_start_date, profile.recording_start_time)
         
-        depth_df = depth_profiler.process_depth_data(
+        depth_mapping_df = depth_profiler.map_images_to_depths(
             image_paths=profile.deduplicated_imgs,
             pressure_sensor_csv_path=profile.pressure_sensor_csv_path,
-            recording_start_datetime=start_datetime
+            recording_start_datetime=start_datetime,
+            capture_rate=args.capture_rate
         )
+
+        profile.set_depth_mapping_df(depth_mapping_df)
         
         # Save depth data to CSV
         print("Saving depth data to CSV...")
@@ -58,7 +62,7 @@ def main():
             "cycle": profile.cycle,
             "location": profile.location
         }
-        csv_path = save_csv_data(depth_df, metadata, profile.output_folder, "depth_profiling_output")
+        csv_path = save_csv_data(depth_mapping_df, metadata, profile.output_folder, "depth_profiles")
         
         print("Processing complete.")
         
@@ -71,9 +75,9 @@ def main():
             assert profile.deduplicated_imgs, "Deduplicated images list should not be empty."
         
         # Verify depth profiling results
-        assert depth_df is not None, "Depth profiling failed, DataFrame is None."
-        assert not depth_df.empty, "Depth profiling returned an empty DataFrame."
-        assert len(depth_df) == len(profile.deduplicated_imgs), \
+        assert depth_mapping_df is not None, "Depth profiling failed, DataFrame is None."
+        assert not depth_mapping_df.empty, "Depth profiling returned an empty DataFrame."
+        assert len(depth_mapping_df) == len(profile.deduplicated_imgs), \
             "The number of rows in the depth DataFrame does not match the number of deduplicated images."
         
         # Verify CSV saving

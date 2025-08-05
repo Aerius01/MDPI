@@ -1,12 +1,7 @@
 import re
 from dateutil import relativedelta
 from dataclasses import dataclass
-
-def get_timestep_from_rate(capture_rate: float) -> relativedelta.relativedelta:
-    """Calculate timestep from capture rate in Hz."""
-    if capture_rate <= 0:
-        raise ValueError("Capture rate must be a positive number.")
-    return relativedelta.relativedelta(microseconds=1/capture_rate*1000000)
+from typing import List, Tuple
 
 # Pre-compile regex for efficiency - matches datetime pattern in image filenames
 BASE_FILENAME_PATTERN = re.compile(r'(\d{8}_\d{6}\d{3})_(\d+)\.') 
@@ -29,7 +24,7 @@ def get_image_sort_key(path: str) -> int:
 class ProcessingConstants:
     """Centralized processing constants."""
     # Batch processing
-    BATCH_SIZE: int = 10
+    BATCH_SIZE: int = 10 # How many images to process at a given time?
     
     # Empirical flatfielding factor --> set by Tim W. & Jens N.
     NORMALIZATION_FACTOR: int = 235
@@ -39,10 +34,11 @@ class ProcessingConstants:
     TIFF_EXTENSION: str = '.tiff'
     CSV_EXTENSION: str = '.csv'
     
-    # CSV processing
-    CSV_SEPARATOR: str = ';'
-    CSV_HEADER_ROW: int = 6
-    CSV_SKIPFOOTER: int = 1
+    # CSV processing --> currently set for reading the pressure sensor data .csv file
+    CSV_SEPARATOR: str = ';' # How are columns delineated?
+    CSV_HEADER_ROW: int = 6 # How many rows to skip before the header?
+    CSV_COLUMNS: Tuple[int, int] = (0, 1) # Which columns to read?
+    CSV_SKIPFOOTER: int = 1 # How many rows to skip after the footer?
     
     # Depth profiling: convert depth values to meters
     DEPTH_MULTIPLIER: float = 10.0
@@ -75,4 +71,4 @@ class ProcessingConstants:
     IMAGE_HEIGHT_PIXELS: int = 2048
 
 # Global instance for easy access
-CONSTANTS = ProcessingConstants() 
+CONSTANTS = ProcessingConstants()
