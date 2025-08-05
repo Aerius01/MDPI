@@ -1,68 +1,74 @@
 import os
-import shutil
-from modules.common.constants import get_timestep_from_rate, CONSTANTS
+import pandas as pd
+from datetime import datetime
+from modules.common.constants import get_timestep_from_rate
 from typing import List
 from .config import ProfileConfig
-from .metadata_extractor import MetadataExtractor
-from .csv_processor import CSVProcessor
 
 class DepthProfiler:
     """Main class for depth profiling operations."""
     
     def __init__(self, config: ProfileConfig = None):
         self.config = config or ProfileConfig()
-        self.metadata_extractor = MetadataExtractor()
-        self.csv_processor = CSVProcessor(self.config)
         self.timestep = get_timestep_from_rate(self.config.capture_rate)
-    
-    def _find_csv_file(self, directory: str) -> str:
-        """Find CSV file in directory."""
-        csv_files = [f for f in os.listdir(directory) if f.endswith(CONSTANTS.CSV_EXTENSION)]
-        if not csv_files:
-            raise ValueError(f"No CSV files found in directory: {directory}")
-        return os.path.join(directory, csv_files[0])
-    
-    def _generate_output_filenames(self, depths: List[float], project: str, date: str, time: str, location: str, output_dir: str) -> List[str]:
-        """Generate output filenames from depth values and metadata."""
-        filename_parts = [project, date, time, location]
-        clean_parts = [part.replace("_", "-") for part in filename_parts]
+
+    def _load_pressure_sensor_csv(self, csv_path: str) -> pd.DataFrame:
+        """Load and process CSV depth data."""
+        pressure_sensor_df = pd.read_csv(
+            csv_path, 
+            sep=self.config.csv_separator, 
+            header=self.config.csv_header_row,
+            usecols=self.config.csv_columns,
+            names=['time', 'depth'], 
+            index_col='time',
+            skipfooter=self.config.csv_skipfooter, 
+            engine='python'
+        )
         
-        return [
-            os.path.join(output_dir, f'{depth:.3f}_{"_".join(clean_parts)}{CONSTANTS.TIFF_EXTENSION}')
-            for depth in depths
-        ]
-    
-    def process_group(self, image_group: List[str], output_path: str) -> List[str]:
-        """Process image group for depth profiling."""
-        print(f"[PROFILING]: Starting depth matching...")
+        # Process timestamps and depths
+        pressure_sensor_df.index = pd.to_datetime(pressure_sensor_df.index, format='%d.%m.%Y %H:%M:%S.%f')
+        pressure_sensor_df['depth'] = pressure_sensor_df['depth'].str.replace(',', '.').astype(float) * self.config.depth_multiplier
         
-        # Extract metadata
-        project, date, time, location, filename = self.metadata_extractor.extract_from_path(image_group[0])
-        root_dir = os.path.dirname(image_group[0])
-        
-        print(f"[PROFILING]: Processing group: {project}/{date}/{time}/{location} ({len(image_group)} images)")
-        
-        # Setup output directory
-        output_dir = os.path.join(output_path, project, date, time, location)
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Process CSV data
-        csv_path = self._find_csv_file(root_dir)
-        csv_data = self.csv_processor.load_and_process(csv_path)
-        
-        # Calculate timestamps and depths
-        image_time = self.metadata_extractor.parse_datetime_from_filename(filename)
-        timestamps = [image_time + (i * self.timestep) for i in range(len(image_group))]
-        nearest_indices = csv_data.index.get_indexer(timestamps, method='nearest')
-        depth_values = csv_data.iloc[nearest_indices]['depth'].values
-        
-        # Generate output filenames and copy files
-        print(f"[PROFILING]: Calculating timestamps and depth values...")
-        output_filenames = self._generate_output_filenames(depth_values, project, date, time, location, output_dir)
-        
-        print(f"[PROFILING]: Saving files...")
-        for source, dest in zip(image_group, output_filenames):
-            shutil.copy2(source, dest)
-        
-        print(f"[PROFILING]: Depth matching completed successfully!")
-        return sorted(output_filenames) 
+        return pressure_sensor_df
+
+    def _calculate_depths(self, pressure_sensor_df: pd.DataFrame, image_paths: List[str], recording_start_datetime: datetime) -> pd.Series:
+        timestamps = [recording_start_datetime + (i * self.timestep) for i in range(len(image_paths))]
+        nearest_indices = pressure_sensor_df.index.get_indexer(timestamps, method='nearest')
+        return pressure_sensor_df.iloc[nearest_indices]['depth'].values
+
+    def _create_depth_dataframe(self, image_paths: List[str], depth_values: pd.Series) -> pd.DataFrame:
+        depth_mapping = {
+            "image_path": [os.path.abspath(p) for p in image_paths],
+            "depth": depth_values
+        }
+        return pd.DataFrame(depth_mapping)
+
+    def process_depth_data(self, image_paths: List[str], pressure_sensor_csv_path: str, recording_start_datetime: datetime) -> pd.DataFrame:
+        """
+        Processes a group of images to calculate depth for each one.
+
+        Args:
+            image_paths (List[str]): A list of full paths to the images in the group.
+            pressure_sensor_csv_path (str): The path to the associated CSV file.
+            recording_start_datetime (datetime): The timestamp of the first image in the group.
+
+        Returns:
+            pd.DataFrame: A DataFrame with image paths and their corresponding depths, or None on failure.
+        """
+        if not image_paths:
+            print("[PROFILING]: Warning: Empty image group provided.")
+            return None
+
+        print(f"[PROFILING]: Starting depth matching for a group of {len(image_paths)} images...")
+
+        try:
+            pressure_sensor_df = self._load_pressure_sensor_csv(pressure_sensor_csv_path)
+            depth_values = self._calculate_depths(pressure_sensor_df, image_paths, recording_start_datetime)
+            mapped_df = self._create_depth_dataframe(image_paths, depth_values)
+            return mapped_df
+        except (ValueError, FileNotFoundError) as e:
+            print(f"[PROFILING]: Error processing CSV file: {e}")
+            return None
+        except Exception as e:
+            print(f"[PROFILING]: An unexpected error occurred: {e}")
+            return None

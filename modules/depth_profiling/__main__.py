@@ -3,11 +3,12 @@
 Command line interface for depth profiling module.
 Usage: python -m modules.depth_profiling [options]
 """
-
 import argparse
 import sys
+from pathlib import Path
 from modules.common.cli_utils import CommonCLI
-from modules.common.constants import get_image_sort_key
+from modules.common.parser import parse_path_metadata, parse_file_metadata, find_single_csv_file
+from modules.common.file_utils import save_csv_data
 from .config import ProfileConfig
 from .profiler import DepthProfiler
 
@@ -26,7 +27,7 @@ Examples:
     parser.add_argument('-i', '--input', required=True,
                         help='Input directory containing images and CSV depth data')
     parser.add_argument('-o', '--output', default='./output/depth_profiles',
-                        help='Top-level output directory for depth-profiled images')
+                        help='Top-level output directory for the image-depth mapping .csv ')
     parser.add_argument('-c', '--capture-rate', type=float, required=True,
                         help='The image capture rate in hertz (Hz) of the MDPI')
     parser.add_argument('--csv-separator', default=';',
@@ -48,9 +49,26 @@ Examples:
         output_path = CommonCLI.validate_output_path(args.output)
         
         # Get image paths from input directory
-        print(f"[PROFILING]: Loading images from {args.input}")
-        image_paths = CommonCLI.get_image_group_from_folder(args.input, get_image_sort_key)
+        input_path = Path(args.input)
+        path_metadata = parse_path_metadata(input_path)
+        file_metadata = parse_file_metadata(input_path, path_metadata["recording_start_date"])
+        pressure_sensor_csv_path = find_single_csv_file(input_path)
+        
+        image_paths = file_metadata["raw_imgs"]
         print(f"[PROFILING]: Found {len(image_paths)} images")
+        
+        # Extract metadata for processing and saving
+        recording_start_time = file_metadata["recording_start_time"]
+        
+        metadata = {
+            "project": path_metadata["project"],
+            "date_str": path_metadata["date_str"],
+            "cycle": path_metadata["cycle"],
+            "location": path_metadata["location"],
+            "time": recording_start_time.strftime("%H%M%S")
+        }
+        
+        print(f"[PROFILING]: Processing group: {metadata['project']}/{metadata['date']}/{metadata['cycle']}/{metadata['location']}")
         
         # Configure depth profiler
         config = ProfileConfig(
@@ -64,11 +82,18 @@ Examples:
         
         # Run depth profiling
         profiler = DepthProfiler(config)
-        output_files = profiler.process_group(image_paths, output_path)
+        df = profiler.process_depth_data(image_paths, pressure_sensor_csv_path, recording_start_time)
         
-        print(f"[PROFILING]: Processing completed successfully!")
-        print(f"[PROFILING]: {len(output_files)} files saved to {output_path}")
-        
+        if df is not None:
+            output_file = save_csv_data(df, metadata, output_path, "depth_profiling_output")
+            if output_file:
+                print(f"[PROFILING]: Processing completed successfully!")
+                print(f"[PROFILING]: 1 file saved to {output_file}")
+            else:
+                raise Exception("Failed to save CSV file.")
+        else:
+            raise Exception("Failed to process depth data.")
+            
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
