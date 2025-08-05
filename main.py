@@ -63,7 +63,7 @@ class ImagePipeline:
         print(f"\n[MAIN]: Processing image group {group_index+1}/{total_groups}: {os.path.dirname(group[0])}")
         
         # Pipeline stages with fallback handling
-        self.duplicate_detector.process_group(group)
+        self.duplicate_detector.process_images(group)
         
         profiled_images = self.depth_profiler.process_group(group, self.paths['depth_profiles'])
         profiled_images = self._get_or_fallback_images(profiled_images, self.paths['depth_profiles'])

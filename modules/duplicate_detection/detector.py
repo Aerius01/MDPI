@@ -3,7 +3,6 @@ import cv2
 import os
 from tqdm import tqdm
 from tools.hash.image_hashing import ImageHash
-from modules.common.constants import get_image_sort_key
 from typing import List, Dict
 from .config import DuplicateConfig
 
@@ -35,7 +34,7 @@ class DuplicateDetector:
             montage = image if montage is None else np.hstack([montage, image])
         return montage
     
-    def _handle_duplicates(self, hash_value: str, duplicate_paths: List[str]) -> int:
+    def _handle_duplicates(self, hash_value: str, duplicate_paths: List[str]) -> List[str]:
         """Handle duplicate images based on configuration."""
         if not self.config.remove:
             if self.config.show_montages:
@@ -43,24 +42,38 @@ class DuplicateDetector:
                 print(f"[INFO] hash: {hash_value}")
                 cv2.imshow("Montage", montage)
                 cv2.waitKey(0)
-            return 0
+            return []
         else:
             # Remove all but the first image
-            for path in duplicate_paths[1:]:
+            paths_to_remove = duplicate_paths[1:]
+            for path in paths_to_remove:
                 os.remove(path)
-            return len(duplicate_paths) - 1
-    
-    def process_group(self, image_paths: List[str]) -> int:
-        """Main method to detect and process duplicates."""
+            return paths_to_remove
+        
+    # This is the heart of the duplicate detection module. It operates upon a group of image paths, 
+    # directly modifying the directory where those images are stored.
+    def process_images(self, image_paths: List[str]) -> List[str]:
+        """
+        Main method to detect and process duplicates in a list of image paths.
+        
+        Args:
+            image_paths: A list of file paths to process.
+            
+        Returns:
+            A list of paths for the duplicate images that were removed.
+        """
         hashes = self._compute_hashes(image_paths)
         
         print('[DUPLICATES]: Detecting duplicate images...')
-        total_removed = 0
         
+        removed_paths = []
         duplicate_hashes = {h: paths for h, paths in hashes.items() if len(paths) > 1}
         
         for hash_value, duplicate_paths in duplicate_hashes.items():
-            total_removed += self._handle_duplicates(hash_value, duplicate_paths)
-        
+            removed_in_group = self._handle_duplicates(hash_value, duplicate_paths)
+            removed_paths.extend(removed_in_group)
+            
+        total_removed = len(removed_paths)
         print(f'[DUPLICATES]: {total_removed} duplicate images removed')
-        return total_removed 
+
+        return removed_paths

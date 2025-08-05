@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 from modules.common import match_files_by_lcs
 from typing import List
+
 def data_restructuring(data, column, separator=r'([/\\_])', column_names=None, treatment=False):
     """
     Python equivalent of the R DataRestructuring function.

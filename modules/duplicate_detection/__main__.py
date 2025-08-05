@@ -55,7 +55,8 @@ Examples:
         
         # Run duplicate detection
         detector = DuplicateDetector(config)
-        removed_count = detector.process_group(image_paths)
+        removed_paths = detector.process_images(image_paths)
+        removed_count = len(removed_paths)
         
         print(f"[DUPLICATES]: Processing completed.")
         if args.remove:
