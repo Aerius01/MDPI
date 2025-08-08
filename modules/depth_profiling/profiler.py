@@ -2,50 +2,57 @@ import os
 import pandas as pd
 from datetime import datetime
 from dateutil import relativedelta
-from modules.common.constants import CONSTANTS
-from typing import List
-
-def get_timestep_from_rate(capture_rate: float) -> relativedelta.relativedelta:
-    """Calculate timestep from capture rate in Hz."""
-    if capture_rate <= 0:
-        raise ValueError("Capture rate must be a positive number.")
-    return relativedelta.relativedelta(microseconds=1/capture_rate*1000000)
+from typing import List, Tuple
 
 class DepthProfiler:
     """Main class for depth profiling operations."""
     
-    def __init__(self):
-        pass
+    def __init__(self,
+                 csv_separator: str,
+                 csv_header_row: int,
+                 csv_columns: Tuple,
+                 csv_skipfooter: int,
+                 depth_multiplier: float,
+                 time_column_name: str,
+                 depth_column_name: str):
+        self.csv_separator = csv_separator
+        self.csv_header_row = csv_header_row
+        self.csv_columns = csv_columns
+        self.csv_skipfooter = csv_skipfooter
+        self.depth_multiplier = depth_multiplier
+        self.time_column_name = time_column_name
+        self.depth_column_name = depth_column_name
 
     def _load_pressure_sensor_csv(self, csv_path: str) -> pd.DataFrame:
         """Load and process CSV depth data."""
         pressure_sensor_df = pd.read_csv(
             csv_path, 
-            sep=CONSTANTS.CSV_SEPARATOR, 
-            header=CONSTANTS.CSV_HEADER_ROW,
-            usecols=list(CONSTANTS.CSV_COLUMNS),
-            names=['time', 'depth'], 
-            index_col='time',
-            skipfooter=CONSTANTS.CSV_SKIPFOOTER, 
+            sep=self.csv_separator, 
+            header=self.csv_header_row,
+            usecols=list(self.csv_columns),
+            names=[self.time_column_name, self.depth_column_name], 
+            index_col=self.time_column_name,
+            skipfooter=self.csv_skipfooter, 
             engine='python'
         )
         
         # Process timestamps and depths
         pressure_sensor_df.index = pd.to_datetime(pressure_sensor_df.index, format='%d.%m.%Y %H:%M:%S.%f')
-        pressure_sensor_df['depth'] = pressure_sensor_df['depth'].str.replace(',', '.').astype(float) * CONSTANTS.DEPTH_MULTIPLIER
+        pressure_sensor_df[self.depth_column_name] = pressure_sensor_df[self.depth_column_name].str.replace(',', '.').astype(float) * self.depth_multiplier
         
         return pressure_sensor_df
 
     def _calculate_depths(self, pressure_sensor_df: pd.DataFrame, image_paths: List[str], recording_start_datetime: datetime, capture_rate: float) -> pd.Series:
-        timestep = get_timestep_from_rate(capture_rate)
+        # Convert capture rate (in Hz) to a timedelta object
+        timestep = relativedelta.relativedelta(microseconds=1/capture_rate*1000000)
         timestamps = [recording_start_datetime + (i * timestep) for i in range(len(image_paths))]
         nearest_indices = pressure_sensor_df.index.get_indexer(timestamps, method='nearest')
-        return pressure_sensor_df.iloc[nearest_indices]['depth'].values
+        return pressure_sensor_df.iloc[nearest_indices][self.depth_column_name].values
 
     def _create_depth_dataframe(self, image_paths: List[str], depth_values: pd.Series) -> pd.DataFrame:
         depth_mapping = {
             "image_path": [os.path.abspath(p) for p in image_paths],
-            "depth": depth_values
+            self.depth_column_name: depth_values
         }
         return pd.DataFrame(depth_mapping)
 

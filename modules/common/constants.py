@@ -3,23 +3,6 @@ from dateutil import relativedelta
 from dataclasses import dataclass
 from typing import List, Tuple
 
-# Pre-compile regex for efficiency - matches datetime pattern in image filenames
-BASE_FILENAME_PATTERN = re.compile(r'(\d{8}_\d{6}\d{3})_(\d+)\.') 
-
-def get_image_sort_key(path: str) -> int:
-    """Extract sort key from image path based on sequence number in filename.
-    
-    Args:
-        path: Path to image file
-        
-    Returns:
-        Sequence number from filename, or 0 if no match found
-    """
-    import os
-    filename = os.path.basename(path)
-    match = BASE_FILENAME_PATTERN.search(filename)
-    return int(match.group(2)) if match else 0
-
 @dataclass(frozen=True)
 class ProcessingConstants:
     """Centralized processing constants."""

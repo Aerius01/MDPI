@@ -3,6 +3,7 @@ Common utilities for command line interfaces across processing modules.
 """
 
 import os
+from pathlib import Path
 from imutils import paths
 from typing import List, Callable, Optional
 
@@ -29,10 +30,11 @@ class CommonCLI:
             raise ValueError(f"Error reading images from {image_folder}: {str(e)}")
     
     @staticmethod
-    def validate_output_path(output_path: str) -> str:
+    def validate_output_path(output_path: str) -> Path:
         """Validate and create output path if needed."""
         try:
-            os.makedirs(output_path, exist_ok=True)
-            return output_path
+            path = Path(output_path)
+            path.mkdir(parents=True, exist_ok=True)
+            return path
         except Exception as e:
             raise ValueError(f"Cannot create output path {output_path}: {str(e)}") 

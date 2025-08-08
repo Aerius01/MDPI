@@ -4,9 +4,24 @@ import os
 from pipeline_profile import Profile
 from modules.duplicate_detection import DuplicateDetector, DuplicateConfig
 from modules.depth_profiling.profiler import DepthProfiler
-from modules.common.file_utils import save_csv_data
 from datetime import datetime
 from modules.common.constants import CONSTANTS
+
+
+# Destructured CONSTANTS for cleaner readability
+CSV_EXTENSION = CONSTANTS.CSV_EXTENSION
+CSV_SEPARATOR = CONSTANTS.CSV_SEPARATOR
+CSV_HEADER_ROW = CONSTANTS.CSV_HEADER_ROW
+CSV_COLUMNS = CONSTANTS.CSV_COLUMNS
+CSV_SKIPFOOTER = CONSTANTS.CSV_SKIPFOOTER
+DEPTH_MULTIPLIER = CONSTANTS.DEPTH_MULTIPLIER
+TIME_COLUMN_NAME = "time"
+DEPTH_COLUMN_NAME = "depth"
+
+# Destructured CONSTANTS for cleaner readability
+BATCH_SIZE = CONSTANTS.BATCH_SIZE
+NORMALIZATION_FACTOR = CONSTANTS.NORMALIZATION_FACTOR
+IMAGE_EXTENSION = CONSTANTS.JPEG_EXTENSION
 
 def main():
     """
@@ -35,39 +50,39 @@ def main():
         print("Running duplicate detection...")
         dup_config = DuplicateConfig(remove=True)
         detector = DuplicateDetector(dup_config)
-        removed_paths = detector.process_images(profile.raw_imgs)
+        removed_paths = detector.process_images(profile.raw_img_paths)
         profile.set_deduplicated_imgs(removed_paths)
         
         # Configure and run depth profiling
         print("Running depth profiling...")
-        depth_profiler = DepthProfiler()
+        depth_profiler = DepthProfiler(
+            csv_separator=CSV_SEPARATOR,
+            csv_header_row=CSV_HEADER_ROW,
+            csv_columns=CSV_COLUMNS,
+            csv_skipfooter=CSV_SKIPFOOTER,
+            depth_multiplier=DEPTH_MULTIPLIER,
+            time_column_name=TIME_COLUMN_NAME,
+            depth_column_name=DEPTH_COLUMN_NAME
+        )
         
         # Combine date and time for a full datetime object
         start_datetime = datetime.combine(profile.recording_start_date, profile.recording_start_time)
-        
-        depth_mapping_df = depth_profiler.map_images_to_depths(
-            image_paths=profile.deduplicated_imgs,
-            pressure_sensor_csv_path=profile.pressure_sensor_csv_path,
-            recording_start_datetime=start_datetime,
-            capture_rate=args.capture_rate
-        )
 
+        depth_mapping_df = depth_profiler.map_images_to_depths(profile.deduplicated_imgs, profile.pressure_sensor_csv_path, start_datetime, args.capture_rate)
         profile.set_depth_mapping_df(depth_mapping_df)
-        
-        # Save depth data to CSV
-        print("Saving depth data to CSV...")
-        metadata = {
-            "project": profile.project,
-            "date_str": profile.recording_start_date.strftime('%Y%m%d'),
-            "cycle": profile.cycle,
-            "location": profile.location
-        }
-        csv_path = save_csv_data(depth_mapping_df, metadata, profile.output_folder, "depth_profiles")
+
+        if depth_mapping_df is not None:
+            output_csv_path = os.path.join(profile.output_path, "depth_profiles" + CSV_EXTENSION)
+            depth_mapping_df.to_csv(output_csv_path, index=False)
+            print(f"[PROFILING]: Successfully saved data to {output_csv_path}")
+            print(f"[PROFILING]: Processing completed successfully!")
+        else:
+            raise Exception("Failed to process depth data.")
         
         print("Processing complete.")
         
         # Verify the number of removed files
-        assert len(removed_paths) == len(profile.raw_imgs) - len(profile.deduplicated_imgs), \
+        assert len(removed_paths) == len(profile.raw_img_paths) - len(profile.deduplicated_imgs), \
             "The number of removed files does not match the difference in file counts."
             
         # Verify that the deduplicated_imgs list is correctly updated
@@ -80,12 +95,8 @@ def main():
         assert len(depth_mapping_df) == len(profile.deduplicated_imgs), \
             "The number of rows in the depth DataFrame does not match the number of deduplicated images."
         
-        # Verify CSV saving
-        assert csv_path is not None, "CSV saving failed, path is None."
-        assert os.path.exists(csv_path), f"CSV file was not created at {csv_path}."
-        
         print(f"Deduplicated images count: {len(profile.deduplicated_imgs)}")
-        print(f"Initial images count: {len(profile.raw_imgs)}")
+        print(f"Initial images count: {len(profile.raw_img_paths)}")
         
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
