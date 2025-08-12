@@ -24,7 +24,7 @@ class ProcessingConstants:
     CSV_SKIPFOOTER: int = 1 # How many rows to skip after the footer?
     
     # Depth profiling: convert depth values to meters
-    DEPTH_MULTIPLIER: float = 10.0
+    PRESSURE_SENSOR_DEPTH_MULTIPLIER: float = 10.0
     
     # Object detection thresholding
     THRESHOLD_VALUE: int = 190
@@ -48,7 +48,7 @@ class ProcessingConstants:
     MEDIUM_OBJECT_THRESHOLD: int = 50
     
     # Depth overlap correction
-    DEPTH_MULTIPLIER_CM: int = 100
+    OVERLAP_CORRECTION_DEPTH_MULTIPLIER: int = 100
     # The MDPI is placed horizontally as it moves through the water column, meaning that images are vertical. 4.3 cm is the height of the field of view.
     IMAGE_HEIGHT_CM: float = 4.3 
     IMAGE_HEIGHT_PIXELS: int = 2048

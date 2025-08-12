@@ -7,7 +7,6 @@ Usage: python -m modules.duplicate_detection [options]
 import argparse
 import sys
 from modules.common.cli_utils import CommonCLI
-from modules.common.constants import get_image_sort_key
 from .config import DuplicateConfig
 from .detector import DuplicateDetector
 
@@ -43,7 +42,7 @@ Examples:
     try:
         # Get image paths from input directory
         print(f"[DUPLICATES]: Loading images from {args.input}")
-        image_paths = CommonCLI.get_image_group_from_folder(args.input, get_image_sort_key)
+        image_paths = CommonCLI.get_image_group_from_folder(args.input)
         print(f"[DUPLICATES]: Found {len(image_paths)} images")
         
         # Configure duplicate detector

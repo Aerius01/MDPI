@@ -5,7 +5,7 @@ from modules.common.constants import CONSTANTS
 class DetectionConfig:
     """Configuration for object detection."""
     # Depth overlap correction
-    depth_multiplier: int = CONSTANTS.DEPTH_MULTIPLIER_CM
+    depth_multiplier: int = CONSTANTS.OVERLAP_CORRECTION_DEPTH_MULTIPLIER
     image_height_cm: float = CONSTANTS.IMAGE_HEIGHT_CM
     image_height_pixels: int = CONSTANTS.IMAGE_HEIGHT_PIXELS
     

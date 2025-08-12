@@ -19,7 +19,7 @@ CSV_SEPARATOR = CONSTANTS.CSV_SEPARATOR
 CSV_HEADER_ROW = CONSTANTS.CSV_HEADER_ROW
 CSV_COLUMNS = CONSTANTS.CSV_COLUMNS
 CSV_SKIPFOOTER = CONSTANTS.CSV_SKIPFOOTER
-DEPTH_MULTIPLIER = CONSTANTS.DEPTH_MULTIPLIER
+PRESSURE_SENSOR_DEPTH_MULTIPLIER = CONSTANTS.PRESSURE_SENSOR_DEPTH_MULTIPLIER
 TIME_COLUMN_NAME = "time"
 DEPTH_COLUMN_NAME = "depth"
 
@@ -71,12 +71,13 @@ Examples:
             csv_header_row=CSV_HEADER_ROW,
             csv_columns=CSV_COLUMNS,
             csv_skipfooter=CSV_SKIPFOOTER,
-            depth_multiplier=DEPTH_MULTIPLIER,
+            depth_multiplier=PRESSURE_SENSOR_DEPTH_MULTIPLIER,
             time_column_name=TIME_COLUMN_NAME,
             depth_column_name=DEPTH_COLUMN_NAME
         )
         df = profiler.map_images_to_depths(metadata['raw_img_paths'], pressure_sensor_csv_path, start_datetime, args.capture_rate)
         
+        # Save depth data to CSV
         if df is not None:
             output_csv_path = os.path.join(output_path, "depth_profiles" + CSV_EXTENSION)
             df.to_csv(output_csv_path, index=False)

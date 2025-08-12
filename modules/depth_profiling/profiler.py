@@ -1,8 +1,16 @@
 import os
 import pandas as pd
+import numpy as np
 from datetime import datetime
 from dateutil import relativedelta
 from typing import List, Tuple
+from modules.common import CONSTANTS
+
+# Destructured CONSTANTS for cleaner readability
+IMAGE_HEIGHT_CM = CONSTANTS.IMAGE_HEIGHT_CM
+IMAGE_HEIGHT_PIXELS = CONSTANTS.IMAGE_HEIGHT_PIXELS
+PRESSURE_SENSOR_DEPTH_MULTIPLIER = CONSTANTS.PRESSURE_SENSOR_DEPTH_MULTIPLIER
+OVERLAP_CORRECTION_DEPTH_MULTIPLIER = CONSTANTS.OVERLAP_CORRECTION_DEPTH_MULTIPLIER
 
 class DepthProfiler:
     """Main class for depth profiling operations."""
@@ -49,10 +57,25 @@ class DepthProfiler:
         nearest_indices = pressure_sensor_df.index.get_indexer(timestamps, method='nearest')
         return pressure_sensor_df.iloc[nearest_indices][self.depth_column_name].values
 
-    def _create_depth_dataframe(self, image_paths: List[str], depth_values: pd.Series) -> pd.DataFrame:
+    def _calculate_pixel_overlap(self, depths: np.ndarray) -> np.ndarray:
+        """Calculate pixel overlaps for depth correction."""
+       
+        image_bottom_depths = depths * OVERLAP_CORRECTION_DEPTH_MULTIPLIER + IMAGE_HEIGHT_CM
+        image_top_depths = depths * OVERLAP_CORRECTION_DEPTH_MULTIPLIER
+        
+        # Get the overlaps in cm
+        overlaps_cm = np.zeros(len(depths)) # Initializing the array
+        overlaps_cm[1:] = np.maximum(0, image_bottom_depths[:-1] - image_top_depths[1:])
+        
+        # Convert the cm overlaps to pixels
+        overlaps_pixels = np.round((overlaps_cm / IMAGE_HEIGHT_CM) * IMAGE_HEIGHT_PIXELS).astype(int)
+        return overlaps_pixels
+
+    def _create_depth_dataframe(self, image_paths: List[str], depth_values: pd.Series, overlaps: np.ndarray) -> pd.DataFrame:
         depth_mapping = {
             "image_path": [os.path.abspath(p) for p in image_paths],
-            self.depth_column_name: depth_values
+            self.depth_column_name: depth_values,
+            "pixel_overlap": overlaps
         }
         return pd.DataFrame(depth_mapping)
 
@@ -76,7 +99,8 @@ class DepthProfiler:
         try:
             pressure_sensor_df = self._load_pressure_sensor_csv(pressure_sensor_csv_path)
             depth_values = self._calculate_depths(pressure_sensor_df, image_paths, recording_start_datetime, capture_rate)
-            mapped_df = self._create_depth_dataframe(image_paths, depth_values)
+            overlaps = self._calculate_pixel_overlap(depth_values)
+            mapped_df = self._create_depth_dataframe(image_paths, depth_values, overlaps)
             return mapped_df
         except (ValueError, FileNotFoundError) as e:
             print(f"[PROFILING]: Error processing CSV file: {e}")

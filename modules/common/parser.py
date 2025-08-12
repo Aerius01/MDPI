@@ -13,6 +13,9 @@ def _parse_path_metadata(directory_path: Path) -> Dict:
     except IndexError:
         raise ValueError(f"Directory path '{directory_path}' is not in the expected format '.../project/date/cycle/location'")
 
+    if not date_str:
+        raise ValueError(f"Extracted date is empty. Please check the directory path '{directory_path}' format.")
+
     try:
         recording_start_date = datetime.datetime.strptime(date_str, "%Y%m%d").date()
     except ValueError:
@@ -91,4 +94,53 @@ def find_single_csv_file(directory_path: Path) -> str:
     if len(csv_files) > 1:
         raise ValueError(f"Multiple CSV files found in directory '{p}': {', '.join(csv_files)}")
 
-    return str(p / csv_files[0]) 
+    return str(p / csv_files[0])
+
+def parse_flatfield_metadata_from_directory(directory_path: Path) -> Dict:
+    """
+    Parses metadata from a directory containing flat-fielded images.
+
+    This function is designed to work with the output of the flatfielding module.
+    It extracts metadata from both the directory path and the image filenames.
+
+    Args:
+        directory_path (Path): The path to the directory containing the flat-fielded images.
+                               The directory should be the 'flatfielded_images' folder.
+
+    Returns:
+        Dict: A dictionary containing the parsed metadata.
+    """
+    path_metadata = _parse_path_metadata(directory_path.parent)
+
+    image_extensions = {'.png', '.jpg', '.jpeg', '.tiff'}
+    filenames = [f for f in os.listdir(directory_path) if os.path.splitext(f)[1].lower() in image_extensions]
+    if not filenames:
+        raise ValueError(f"No image files found in directory '{directory_path}'")
+
+    # The time is the same for all files in a batch, so we can parse it from the first one.
+    time_str = filenames[0].split('_')[0]
+    if len(time_str) != 9:
+        raise ValueError(f"Time part of filename '{time_str}' has incorrect length. Expected 9 digits for 'HHMMSSmmm' format.")
+
+    time_str_for_strptime = time_str[:6] + f"{int(time_str[6:]) * 1000:06d}"
+    recording_start_time = datetime.datetime.strptime(time_str_for_strptime, "%H%M%S%f").time()
+
+    # To get total replicates, we parse the number from each filename and find the max.
+    total_replicates = 0
+    for f in filenames:
+        try:
+            replicate = int(f.split('_')[1].split('.')[0])
+            if replicate > total_replicates:
+                total_replicates = replicate
+        except (IndexError, ValueError):
+            continue  # Ignore files that don't match the format
+
+    raw_img_paths = sorted([str(directory_path / f) for f in filenames])
+
+    file_metadata = {
+        "recording_start_time": recording_start_time,
+        "total_replicates": total_replicates,
+        "raw_img_paths": raw_img_paths,
+    }
+
+    return {**path_metadata, **file_metadata} 
