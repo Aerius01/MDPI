@@ -1,6 +1,3 @@
-from .config import DetectionConfig
-from .overlap_corrector import OverlapCorrector
-from .region_processor import RegionProcessor
-from .detector import ObjectDetector
+from .detector import load_and_threshold_images, detect_objects
 
-__all__ = ['DetectionConfig', 'OverlapCorrector', 'RegionProcessor', 'ObjectDetector'] 
+__all__ = ['load_and_threshold_images', 'detect_objects'] 
