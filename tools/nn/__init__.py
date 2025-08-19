@@ -1,1 +1,1 @@
-from .soft_max import SoftMax
+from .soft_max import soft_max

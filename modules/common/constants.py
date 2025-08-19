@@ -1,6 +1,6 @@
 import re
 from dateutil import relativedelta
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Tuple
 
 @dataclass(frozen=True)
@@ -57,6 +57,12 @@ class ProcessingConstants:
     # The MDPI is placed horizontally as it moves through the water column, meaning that images are vertical. 4.3 cm is the height of the field of view.
     IMAGE_HEIGHT_CM: float = 4.3 
     IMAGE_HEIGHT_PIXELS: int = 2048
+
+    # Object classification
+    CLASSIFICATION_BATCH_SIZE: int = 32
+    CLASSIFICATION_INPUT_SIZE: int = 50
+    CLASSIFICATION_INPUT_DEPTH: int = 1
+    CLASSIFICATION_CATEGORIES: List[str] = field(default_factory=lambda: ['cladocera', 'copepod', 'junk', 'rotifer'])
 
 # Global instance for easy access
 CONSTANTS = ProcessingConstants()

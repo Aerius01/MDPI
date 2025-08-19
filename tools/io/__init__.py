@@ -1,1 +1,1 @@
-from .batch_generator import BatchGenerator
+from .batch_generator import batch_generator

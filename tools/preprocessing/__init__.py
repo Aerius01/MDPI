@@ -1,2 +1,2 @@
-from .rotate_image import RotateImage
-from .image_preprocessing import ImagePreprocessor
+from .rotate_image import rotate_image
+from .image_preprocessing import image_preprocessing

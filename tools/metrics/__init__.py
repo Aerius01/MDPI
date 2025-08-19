@@ -1,3 +1,3 @@
-from .least_confidence import LeastConfidence
-from .margin_sampling import MarginSampling
-from .entropy import Entropy
+from .least_confidence import least_confidence
+from .margin_sampling import margin_sampling
+from .entropy import entropy

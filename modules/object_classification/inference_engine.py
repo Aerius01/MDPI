@@ -1,15 +1,19 @@
 import os
 import numpy as np
-from tools.nn.soft_max import SoftMax
-from tools.io.batch_generator import BatchGenerator
-from tools.preprocessing.image_preprocessing import ImagePreprocessor
-from tools.metrics.entropy import Entropy
-from tools.metrics.least_confidence import LeastConfidence
-from tools.metrics.margin_sampling import MarginSampling
 from tqdm import tqdm
 from typing import List, Dict, Any
-from .config import ClassificationConfig
-from .architecture import CNNArchitecture
+
+# Custom modules located within the object_classification module
+from .architecture import build_model
+from .validated_arguments import ValidatedArguments
+
+# Custom modules located externally from the object_classification module
+from tools.nn.soft_max import soft_max
+from tools.io.batch_generator import batch_generator
+from tools.preprocessing.image_preprocessing import image_preprocessing
+from tools.metrics.entropy import entropy
+from tools.metrics.least_confidence import least_confidence
+from tools.metrics.margin_sampling import margin_sampling
 
 # Suppress TensorFlow logging messages - MUST be set before importing tensorflow
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=all, 1=no INFO, 2=no INFO/WARN, 3=no INFO/WARN/ERROR
@@ -20,78 +24,67 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 class InferenceEngine:
     """Handles model inference and prediction pipeline."""
     
-    def __init__(self, config: ClassificationConfig):
-        self.config = config
-        self.sess = None
-        self._initialize_components()
-        self._setup_model()
-    
-    def _initialize_components(self):
-        """Initialize utility classes for processing and evaluation."""
-        print('[CLASSIFICATION]: Initializing batch generator...')
-        self.gen = BatchGenerator()
-        self.pre = ImagePreprocessor()
-        self.en = Entropy()
-        self.lc = LeastConfidence()
-        self.ms = MarginSampling()
-        self.softmax = SoftMax()
-    
-    def _setup_model(self):
-        """Setup TensorFlow session and model."""
+    def __init__(self, validated_args: ValidatedArguments):
+        self.validated_args = validated_args
+        self.session = None
+
+        # Reset the default graph and close the session
         tf.compat.v1.disable_eager_execution()
-        self.sess = tf.compat.v1.Session()  # Use Session instead of InteractiveSession
+        tf.compat.v1.reset_default_graph()
+        if tf.compat.v1.get_default_session() is not None:
+            tf.compat.v1.get_default_session().close()
+    
+    def setup_model(self):
+        """Setup TensorFlow session and model."""
+        self.session = tf.compat.v1.Session()
         
         print('[CLASSIFICATION]: Constructing classification model...')
-        cnn = CNNArchitecture(self.config)
-        self.x_input, self.keep_prob, self.y_pred = cnn.build_model()
+        self.x_input, self.keep_prob, self.y_pred = build_model(self.validated_args.input_size, self.validated_args.input_depth, len(self.validated_args.categories))
         
         print('[CLASSIFICATION]: Restoring classification model...')
-        self.sess.run(tf.compat.v1.global_variables_initializer())
+        self.session.run(tf.compat.v1.global_variables_initializer())
         saver = tf.compat.v1.train.Saver()
-        saver.restore(self.sess, os.path.sep.join([self.config.model_path, "model.ckpt"]))
+        saver.restore(self.session, os.path.sep.join([self.validated_args.model_path, "model.ckpt"]))
     
-    def process_location(self, image_paths: List[str]) -> Dict[str, Any]:
+    def process_location(self) -> Dict[str, Any]:
         """Process all images in the provided list and return classification results."""
         
-        if len(image_paths) == 0:
-            raise ValueError("No images provided in image_paths list")
-        
         # Preprocess images
-        angles, images, image_mean = self.pre.image_preprocessing(image_paths, self.config.input_size)
+        angles, images, image_mean = image_preprocessing(self.validated_args.image_paths, self.validated_args.input_size)
         
         # Run batch predictions
-        predictions = self._run_batch_predictions(images, image_mean, len(image_paths))
+        predictions = self._run_batch_predictions(images, image_mean, len(self.validated_args.image_paths))
         
         # Post-process predictions
-        return self._post_process_predictions(predictions, image_paths, angles)
+        return self._post_process_predictions(predictions, self.validated_args.image_paths, angles)
     
     def _run_batch_predictions(self, images: np.ndarray, image_mean: float, num_images: int) -> np.ndarray:
         """Run batch predictions on preprocessed images."""
-        predictions = np.array([], dtype=np.float32).reshape(0, len(self.config.categories))
+        predictions = np.array([], dtype=np.float32).reshape(0, len(self.validated_args.categories))
         epoch_step = 0
         
         print('[CLASSIFICATION]: Starting vignettes classification...')
-        print(f"[CLASSIFICATION]: Processing {num_images} images in {int(np.ceil(num_images / self.config.batch_size))} batches")
-        for i in tqdm(range(int(np.ceil(num_images / self.config.batch_size))), desc='[CLASSIFICATION]'):
-            batch_x = self.gen.batch_generator(
+        print(f"[CLASSIFICATION]: Processing {num_images} images in {int(np.ceil(num_images / self.validated_args.batch_size))} batches")
+        for i in tqdm(range(int(np.ceil(num_images / self.validated_args.batch_size))), desc='[CLASSIFICATION]'):
+            batch_x = batch_generator(
                 images=images, images_mean=image_mean, nr_images=num_images,
-                batch_size=self.config.batch_size, index=epoch_step
+                batch_size=self.validated_args.batch_size, index=epoch_step
             )
-            epoch_step += self.config.batch_size
+            epoch_step += self.validated_args.batch_size
             
-            pred = self.sess.run(self.y_pred, feed_dict={self.x_input: batch_x, self.keep_prob: 1})
+            pred = self.session.run(self.y_pred, feed_dict={self.x_input: batch_x, self.keep_prob: 1})
             predictions = np.concatenate((predictions, pred), axis=0)
         
         return predictions
     
     def _post_process_predictions(self, predictions: np.ndarray, image_paths: List[str], angles: List[float]) -> Dict[str, Any]:
         """Post-process predictions and calculate uncertainty metrics."""
-        predictions = self.softmax.soft_max(predictions)
+        predictions = soft_max(predictions)
         
         # Calculate uncertainty metrics
-        _, max_y = self.lc.least_confidence(predictions)
-        _, diff = self.ms.margin_sampling(predictions)
-        _, ent = self.en.entropy(predictions)
+        _, max_y = least_confidence(predictions)
+        _, diff = margin_sampling(predictions)
+        _, ent = entropy(predictions)
         
         probabilities = np.amax(predictions, axis=1).tolist()
         cat_predictions = np.argmax(predictions, axis=1).tolist()
@@ -110,12 +103,12 @@ class InferenceEngine:
             })
         
         return {
-            'classes': self.config.categories,
+            'classes': self.validated_args.categories,
             'samples': samples
         }
     
     def close(self):
         """Close the TensorFlow session to free resources."""
-        if self.sess is not None:
-            self.sess.close()
-            self.sess = None 
+        if self.session is not None:
+            self.session.close()
+            self.session = None 

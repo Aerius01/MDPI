@@ -56,8 +56,6 @@ def process_vignette(mapped_region: MappedImageRegions, output_path: str):
     """
     img_name = Path(mapped_region.source_image_path).stem
     for region in mapped_region.processed_regions:
-        # Add image-specific info to the region data
-        region.region_data['FileName'] = img_name
         
         # Crop vignette
         minr, maxr, minc, maxc = region.region_extents
@@ -66,6 +64,9 @@ def process_vignette(mapped_region: MappedImageRegions, output_path: str):
         # Construct vignette path
         vignette_filename = f"{img_name}_vignette_{region.region_id}.png"
         vignette_path = os.path.join(output_path, vignette_filename)
+    
+        # Add image-specific info to the region data
+        region.region_data['FileName'] = vignette_filename
         
         yield region.region_data, vignette_img, vignette_path
 
@@ -81,30 +82,19 @@ def create_dataframe(data_list: list) -> pd.DataFrame:
 
     return combined_df
 
-def save_dataframe(metadata: dict, combined_df: pd.DataFrame, output_path: str) -> None:
+def save_dataframe(combined_df: pd.DataFrame, output_path: str) -> None:
     """Save detection results to CSV and text files."""
 
     if combined_df.empty:
         print(f"[DETECTION]: Detection completed. No objects detected.")
         return
 
-    # Get project, date, time, location from metadata for filename
-    project = metadata["project"]
-    date = metadata["recording_start_date"].strftime("%Y%m%d")
-    time = metadata["recording_start_time"].strftime("%H%M%S")
-    location = metadata["location"]
-
     # Save results
     print(f"[DETECTION]: Detection completed successfully! Total objects detected: {len(combined_df)}")
-    # Save CSV file
-    csv_output_file = os.path.join(output_path, f'objectMeasurements_{project}_{date}_{time}_{location}{CSV_EXTENSION}')
+
+    csv_output_file = os.path.join(Path(output_path).parent, f'object_data{CSV_EXTENSION}')
     combined_df.to_csv(csv_output_file, sep=CSV_SEPARATOR, index=False)
     print(f"[DETECTION]: Saved results to {csv_output_file}")
-    
-    # Save text file (space-separated)
-    txt_output_file = os.path.join(output_path, f'objectMeasurements_{project}_{date}_{time}_{location}.txt')
-    combined_df.to_csv(txt_output_file, sep=' ', index=False)
-    print(f"[DETECTION]: Copied results to {txt_output_file}")
 
 def main(validated_arguments: ValidatedArguments):
     image_paths = validated_arguments.metadata['raw_img_paths']
@@ -137,7 +127,7 @@ def main(validated_arguments: ValidatedArguments):
            
     # Step 3: Create a combined DataFrame from all processed regions and then save it
     combined_df = create_dataframe(all_region_data)
-    save_dataframe(validated_arguments.metadata, combined_df, validated_arguments.output_path)
+    save_dataframe(combined_df, validated_arguments.output_path)
 
     print(f"[DETECTION]: Processing completed successfully!")
     print(f"[DETECTION]: {output_count} vignettes saved to {validated_arguments.output_path}")

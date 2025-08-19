@@ -1,7 +1,7 @@
 import datetime
 import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Any
 
 def _parse_path_metadata(directory_path: Path) -> Dict:
     """Parses the directory path to extract project, date, cycle, and location."""
@@ -82,6 +82,61 @@ def parse_metadata(directory_path: Path) -> Dict:
     path_metadata = _parse_path_metadata(directory_path)
     file_metadata = _parse_file_metadata(directory_path, path_metadata["recording_start_date"])
 
+    return {**path_metadata, **file_metadata}
+
+def _parse_vignette_file_metadata(directory_path: Path) -> Dict[str, Any]:
+    """
+    Parses metadata from a directory containing vignette images.
+
+    This function is tailored for the object classification module.
+    It extracts metadata from the image filenames.
+
+    Args:
+        directory_path (Path): The path to the directory containing the vignette images.
+
+    Returns:
+        Dict: A dictionary containing the parsed file metadata.
+    """
+    image_extensions = {'.png', '.jpg', '.jpeg', '.tiff'}
+    filenames = [f for f in os.listdir(directory_path) if os.path.splitext(f)[1].lower() in image_extensions]
+    if not filenames:
+        raise ValueError(f"No image files found in directory '{directory_path}'")
+
+    # Sort filenames to ensure consistent ordering
+    filenames.sort()
+    
+    raw_img_paths = [str(directory_path / filename) for filename in filenames]
+    
+    # Time is the same for all images, and replicates are parsed from the last one to get the total.
+    last_image_filename = filenames[-1]
+
+    try:
+        # Parse time and total replicates from the last filename
+        # Expected format: HHMMSSmmm_replicate_vignette_objectID.ext
+        filename_parts = last_image_filename.split('_')
+        time_str = filename_parts[0]
+        if len(time_str) != 9:
+            raise ValueError(f"Time part of filename '{time_str}' from '{last_image_filename}' has incorrect length. Expected 9 digits for 'HHMMSSmmm' format.")
+        
+        time_str_for_strptime = time_str[:6] + f"{int(time_str[6:]) * 1000:06d}"
+        recording_start_time = datetime.datetime.strptime(time_str_for_strptime, "%H%M%S%f").time()
+
+        # Parse total replicates from last filename
+        total_replicates = int(filename_parts[1])
+
+    except (IndexError, ValueError) as e:
+        raise ValueError(f"Could not parse info from filenames in '{directory_path}'. Expected 'HHMMSSmmm_replicate_vignette_objectID.ext'. Error: {e}")
+    
+    return {
+        "total_replicates": total_replicates,
+        "recording_start_time": recording_start_time,
+        "raw_img_paths": raw_img_paths
+    }
+
+def parse_vignette_metadata(directory_path: Path) -> Dict:
+    """Parses directory path and vignette filenames to extract all metadata."""
+    path_metadata = _parse_path_metadata(directory_path.parent)
+    file_metadata = _parse_vignette_file_metadata(directory_path)
     return {**path_metadata, **file_metadata}
 
 def find_single_csv_file(directory_path: Path) -> str:
