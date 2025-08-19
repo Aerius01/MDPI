@@ -22,6 +22,11 @@ class ProcessingConstants:
     CSV_HEADER_ROW: int = 6 # How many rows to skip before the header?
     CSV_COLUMNS: Tuple[int, int] = (0, 1) # Which columns to read?
     CSV_SKIPFOOTER: int = 1 # How many rows to skip after the footer?
+
+    # Duplicate detection
+    DUPLICATE_DETECTION_DISPLAY_SIZE: Tuple[int, int] = (500, 500)
+    DUPLICATE_DETECTION_REMOVE: bool = False
+    DUPLICATE_DETECTION_SHOW_MONTAGES: bool = True
     
     # Depth profiling: convert depth values to meters
     PRESSURE_SENSOR_DEPTH_MULTIPLIER: float = 10.0

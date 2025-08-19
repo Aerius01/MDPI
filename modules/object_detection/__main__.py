@@ -106,7 +106,43 @@ def save_dataframe(metadata: dict, combined_df: pd.DataFrame, output_path: str) 
     combined_df.to_csv(txt_output_file, sep=' ', index=False)
     print(f"[DETECTION]: Copied results to {txt_output_file}")
 
-def main():
+def main(validated_arguments: ValidatedArguments):
+    image_paths = validated_arguments.metadata['raw_img_paths']
+    print(f"[DETECTION]: Found {len(image_paths)} flatfielded images")
+
+    # Step 2: Process images in batches to reduce peak memory usage
+    num_batches = int(np.ceil(len(image_paths) / BATCH_SIZE))
+    print(f"[DETECTION]: Performing object detection in {num_batches} batches...")
+    
+    all_region_data = []
+    output_count = 0
+    
+    for i in tqdm(range(0, len(image_paths), BATCH_SIZE), desc='[DETECTION]'):
+        batch_end = i + BATCH_SIZE
+        batch_image_paths = image_paths[i:batch_end]
+
+        # Load and threshold only the current batch
+        batch_images, batch_binary_images = load_and_threshold_images(batch_image_paths)
+
+        # Process the batch to get regions mapped to each image
+        mapped_regions_batch = detect_objects(batch_images, batch_binary_images, batch_image_paths)
+
+        # Unpack the results, save vignettes, and collect data for CSV
+        for mapped_region in mapped_regions_batch:
+            process_vignette_generator = process_vignette(mapped_region, validated_arguments.output_path)
+            for region_data, vignette_img, vignette_path in process_vignette_generator:
+                all_region_data.append(region_data)
+                cv2.imwrite(vignette_path, vignette_img)
+                output_count += 1
+           
+    # Step 3: Create a combined DataFrame from all processed regions and then save it
+    combined_df = create_dataframe(all_region_data)
+    save_dataframe(validated_arguments.metadata, combined_df, validated_arguments.output_path)
+
+    print(f"[DETECTION]: Processing completed successfully!")
+    print(f"[DETECTION]: {output_count} vignettes saved to {validated_arguments.output_path}")
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Detect objects in images and extract vignettes.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -128,44 +164,8 @@ Examples:
         # Step 1: Process arguments
         print(f"[DETECTION]: Loading images from {args.input}")
         validated_arguments = process_arguments(args)
-        image_paths = validated_arguments.metadata['raw_img_paths']
-        print(f"[DETECTION]: Found {len(image_paths)} flatfielded images")
-
-        # Step 2: Process images in batches to reduce peak memory usage
-        num_batches = int(np.ceil(len(image_paths) / BATCH_SIZE))
-        print(f"[DETECTION]: Performing object detection in {num_batches} batches...")
-        
-        all_region_data = []
-        output_count = 0
-        
-        for i in tqdm(range(0, len(image_paths), BATCH_SIZE), desc='[DETECTION]'):
-            batch_end = i + BATCH_SIZE
-            batch_image_paths = image_paths[i:batch_end]
-
-            # Load and threshold only the current batch
-            batch_images, batch_binary_images = load_and_threshold_images(batch_image_paths)
-
-            # Process the batch to get regions mapped to each image
-            mapped_regions_batch = detect_objects(batch_images, batch_binary_images, batch_image_paths)
-
-            # Unpack the results, save vignettes, and collect data for CSV
-            for mapped_region in mapped_regions_batch:
-                process_vignette_generator = process_vignette(mapped_region, validated_arguments.output_path)
-                for region_data, vignette_img, vignette_path in process_vignette_generator:
-                    all_region_data.append(region_data)
-                    cv2.imwrite(vignette_path, vignette_img)
-                    output_count += 1
-               
-        # Step 3: Create a combined DataFrame from all processed regions and then save it
-        combined_df = create_dataframe(all_region_data)
-        save_dataframe(validated_arguments.metadata, combined_df, validated_arguments.output_path)
-
-        print(f"[DETECTION]: Processing completed successfully!")
-        print(f"[DETECTION]: {output_count} vignettes saved to {validated_arguments.output_path}")
+        main(validated_arguments)
         
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-
-if __name__ == "__main__":
-    main() 
+        sys.exit(1) 
