@@ -8,75 +8,27 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from modules.common.cli_utils import CommonCLI
-from modules.common.parser import parse_vignette_metadata
 from .inference_engine import InferenceEngine
 from typing import Dict, Any
 import pickle
 import pandas as pd
-from .validated_arguments import ValidatedArguments
+from .validated_arguments import ValidatedArguments, validate_arguments
 from modules.common.constants import CONSTANTS
 
 # Destructure constants
 DEFAULT_BATCH_SIZE = CONSTANTS.CLASSIFICATION_BATCH_SIZE
 DEFAULT_INPUT_SIZE = CONSTANTS.CLASSIFICATION_INPUT_SIZE
 DEFAULT_INPUT_DEPTH = CONSTANTS.CLASSIFICATION_INPUT_DEPTH
-DEFAULT_CATEGORIES = CONSTANTS.CLASSIFICATION_CATEGORIES
-CSV_FILENAME = 'object_data.csv'
+
+# Hardcoded constants
 PKL_FILENAME = 'object_data.pkl'
+LEFT_JOIN_KEY = 'FileName'
 
-def process_arguments(args: argparse.Namespace) -> ValidatedArguments:
-    # Validate paths
-    if not os.path.exists(args.model):
-        raise FileNotFoundError(f"Model directory does not exist: {args.model}")
-    
-    model_checkpoint = os.path.join(args.model, "model.ckpt")
-    if not any(os.path.exists(f"{model_checkpoint}.{ext}") for ext in ['meta', 'index', 'data-00000-of-00001']):
-        raise FileNotFoundError(f"Model checkpoint files not found in: {args.model}")
-    
-    # Get image paths from input directory
-    print(f"[CLASSIFICATION]: Loading images from {args.input}")
-    image_paths = CommonCLI.get_image_group_from_folder(args.input)
-    print(f"[CLASSIFICATION]: Found {len(image_paths)} images")
-    
-    input_path = Path(args.input)
-    metadata = parse_vignette_metadata(input_path)
-
-    # Validate and create output path
-    output_dir = CommonCLI.validate_output_path(args.output)
-    date_str = metadata["recording_start_date"].strftime("%Y%m%d")
-    output_path = os.path.join(output_dir, metadata["project"], date_str, metadata["cycle"], metadata["location"])
-    os.makedirs(output_path, exist_ok=True)
-
-    # The detection CSV file must exist and be non-empty.
-    csv_path = os.path.join(output_path, CSV_FILENAME)
-    if not os.path.exists(csv_path):
-        raise FileNotFoundError(f"Detection CSV file not found at {csv_path}. It must be created by the object detection module first.")
-    
-    try:
-        detection_df = pd.read_csv(csv_path, sep=None, engine='python')
-        if detection_df.empty:
-            raise ValueError(f"Detection CSV file is empty: {csv_path}")
-    except pd.errors.EmptyDataError:
-        raise ValueError(f"Detection CSV file is empty: {csv_path}") from None
-
-    return ValidatedArguments(
-        image_paths=image_paths,
-        output_path=output_path,
-        model_path=args.model,
-        metadata=metadata,
-        batch_size=args.batch_size,
-        input_size=args.input_size,
-        input_depth=args.input_depth,
-        categories=DEFAULT_CATEGORIES,
-        detection_df=detection_df
-    )
-
-def save_results(results: Dict[str, Any], output_path: str, filename: str):
+def save_results(results: Dict[str, Any], output_path: Path, filename: str):
     """Save classification results to pickle file."""
     print('[CLASSIFICATION]: Creating pickle output...')
     
-    with open(os.path.sep.join([output_path, filename]), 'wb') as handle:
+    with open(output_path / filename, 'wb') as handle:
         pickle.dump(results, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 def assemble_classification_dataframe(results: Dict[str, Any]) -> pd.DataFrame:
@@ -101,7 +53,7 @@ def assemble_classification_dataframe(results: Dict[str, Any]) -> pd.DataFrame:
 
         # Hardcoded prediction = label columns as per Christian Dilewski's compromise with Jens Nejstgaard
         row = {
-            'FileName': file_name,
+            LEFT_JOIN_KEY: file_name,
             'prediction': prediction_class_name,
             'label': prediction_class_name
         }
@@ -109,7 +61,7 @@ def assemble_classification_dataframe(results: Dict[str, Any]) -> pd.DataFrame:
 
     return pd.DataFrame(new_data)
 
-def left_join_dataframes(new_df: pd.DataFrame, existing_df: pd.DataFrame) -> pd.DataFrame:
+def left_join_dataframes(new_df: pd.DataFrame, existing_df: pd.DataFrame, key: str) -> pd.DataFrame:
     """
     Joins new classification results with an existing dataframe.
     It drops old 'prediction' and 'label' columns from the existing dataframe
@@ -122,7 +74,7 @@ def left_join_dataframes(new_df: pd.DataFrame, existing_df: pd.DataFrame) -> pd.
         existing_df = existing_df.drop(columns=['label'])
 
     # Perform a left join to add the classification results, updating rows in new_df with data from existing_df.
-    updated_df = pd.merge(new_df, existing_df, on='FileName', how='left')
+    updated_df = pd.merge(new_df, existing_df, on=key, how='left')
     return updated_df
 
 def save_csv_results(merged_df: pd.DataFrame, output_path: str, filename: str):
@@ -150,8 +102,8 @@ def main(validated_args: ValidatedArguments):
 
         # Assemble the classification dataframe and merge the detection dataframe into it, before saving as a .csv file
         classification_df = assemble_classification_dataframe(results)
-        merged_df = left_join_dataframes(classification_df, validated_args.detection_df)
-        save_csv_results(merged_df, validated_args.output_path, CSV_FILENAME)
+        merged_df = left_join_dataframes(classification_df, validated_args.detection_df, key=LEFT_JOIN_KEY)
+        save_csv_results(merged_df, validated_args.output_path, validated_args.csv_filename)
         
     finally:
         inference_engine.close()
@@ -186,7 +138,7 @@ Examples:
     args = parser.parse_args()
     
     try:
-        validated_args = process_arguments(args)
+        validated_args = validate_arguments(args)
         main(validated_args)
         
     except Exception as e:

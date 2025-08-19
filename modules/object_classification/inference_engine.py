@@ -50,13 +50,13 @@ class InferenceEngine:
         """Process all images in the provided list and return classification results."""
         
         # Preprocess images
-        angles, images, image_mean = image_preprocessing(self.validated_args.image_paths, self.validated_args.input_size)
+        angles, images, image_mean = image_preprocessing(self.validated_args.vignette_paths, self.validated_args.input_size)
         
         # Run batch predictions
-        predictions = self._run_batch_predictions(images, image_mean, len(self.validated_args.image_paths))
+        predictions = self._run_batch_predictions(images, image_mean, len(self.validated_args.vignette_paths))
         
         # Post-process predictions
-        return self._post_process_predictions(predictions, self.validated_args.image_paths, angles)
+        return self._post_process_predictions(predictions, self.validated_args.vignette_paths, angles)
     
     def _run_batch_predictions(self, images: np.ndarray, image_mean: float, num_images: int) -> np.ndarray:
         """Run batch predictions on preprocessed images."""
@@ -77,7 +77,7 @@ class InferenceEngine:
         
         return predictions
     
-    def _post_process_predictions(self, predictions: np.ndarray, image_paths: List[str], angles: List[float]) -> Dict[str, Any]:
+    def _post_process_predictions(self, predictions: np.ndarray, vignette_paths: List[str], angles: List[float]) -> Dict[str, Any]:
         """Post-process predictions and calculate uncertainty metrics."""
         predictions = soft_max(predictions)
         
@@ -91,7 +91,7 @@ class InferenceEngine:
         
         # Format output
         samples = []
-        for i, image_path in enumerate(image_paths):
+        for i, image_path in enumerate(vignette_paths):
             samples.append({
                 'paths': image_path,
                 'y_predicted': cat_predictions[i],
