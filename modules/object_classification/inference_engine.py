@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 
 # Custom modules located within the object_classification module
 from .architecture import build_model
-from .validated_arguments import ValidatedArguments
+from .classification_data import ClassificationData
 
 # Custom modules located externally from the object_classification module
 from tools.nn.soft_max import soft_max
@@ -24,7 +24,7 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 class InferenceEngine:
     """Handles model inference and prediction pipeline."""
     
-    def __init__(self, validated_args: ValidatedArguments):
+    def __init__(self, validated_args: ClassificationData):
         self.validated_args = validated_args
         self.session = None
 
