@@ -72,8 +72,10 @@ class DepthProfiler:
         return overlaps_pixels
 
     def _create_depth_dataframe(self, image_paths: List[str], depth_values: pd.Series, overlaps: np.ndarray) -> pd.DataFrame:
+        image_ids = [int(os.path.splitext(os.path.basename(p))[0].split('_')[-1]) for p in image_paths]
         depth_mapping = {
             "image_path": [os.path.abspath(p) for p in image_paths],
+            "image_id": image_ids,
             self.depth_column_name: depth_values,
             "pixel_overlap": overlaps
         }

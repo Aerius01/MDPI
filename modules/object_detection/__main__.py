@@ -28,6 +28,7 @@ CSV_SEPARATOR = CONSTANTS.CSV_SEPARATOR
 class ValidatedArguments:
     input_path: str
     output_path: str
+    depth_profiles_df: pd.DataFrame
     metadata: dict
 
 def process_arguments(args: argparse.Namespace) -> ValidatedArguments:
@@ -41,7 +42,21 @@ def process_arguments(args: argparse.Namespace) -> ValidatedArguments:
     output_path = os.path.join(output_dir, metadata["project"], date_str, metadata["cycle"], metadata["location"], "vignettes")
     os.makedirs(output_path, exist_ok=True)
 
-    return ValidatedArguments(input_path, output_path, metadata)
+    # Validate the depth profiles path and read the data
+    depth_profiles_path = Path(args.depth_profiles)
+    if not depth_profiles_path.is_file():
+        raise FileNotFoundError(f"Depth profiles CSV file not found at: {depth_profiles_path}")
+    
+    depth_profiles_df = pd.read_csv(depth_profiles_path, sep=None, engine='python')
+
+    required_columns = ['image_id', 'depth']
+    if not all(col in depth_profiles_df.columns for col in required_columns):
+        raise ValueError(f"Required columns ('image_id', 'depth') not found in depth profiles file: {depth_profiles_path}")
+    
+    # Select only the required columns
+    depth_profiles_df = depth_profiles_df[['image_id', 'depth']]
+
+    return ValidatedArguments(input_path, output_path, depth_profiles_df, metadata)
 
 def process_vignette(mapped_region: MappedImageRegions, output_path: str):
     """
@@ -55,6 +70,7 @@ def process_vignette(mapped_region: MappedImageRegions, output_path: str):
     the outer loop and this inner loop are connected and running synchronously.
     """
     img_name = Path(mapped_region.source_image_path).stem
+    image_id = int(img_name.split('_')[1])
     for region in mapped_region.processed_regions:
         
         # Crop vignette
@@ -67,17 +83,35 @@ def process_vignette(mapped_region: MappedImageRegions, output_path: str):
     
         # Add image-specific info to the region data
         region.region_data['FileName'] = vignette_filename
+        region.region_data['replicate'] = region.region_id
+        region.region_data['image_id'] = image_id
         
         yield region.region_data, vignette_img, vignette_path
 
-def create_dataframe(data_list: list) -> pd.DataFrame:
+def create_dataframe(data_list: list, validated_arguments: ValidatedArguments) -> pd.DataFrame:
     # Create a combined DataFrame from all processed regions
     if not data_list:
         return pd.DataFrame()
     
-    # Create dataframe and reorder columns to have FileName first
+    # Create dataframe
     combined_df = pd.DataFrame(data_list)
-    cols = ['FileName'] + [col for col in combined_df.columns if col not in ['FileName']]
+
+    # Join with depth profiles
+    combined_df = pd.merge(combined_df, validated_arguments.depth_profiles_df, on='image_id', how='left')
+
+    # Add metadata
+    metadata = validated_arguments.metadata
+    combined_df['project'] = metadata['project']
+    combined_df['recording_start_date'] = metadata['recording_start_date']
+    combined_df['cycle'] = metadata['cycle']
+    combined_df['location'] = metadata['location']
+    
+    # Sort the dataframe by image_id and then by replicate
+    combined_df = combined_df.sort_values(by=['image_id', 'replicate'])
+    
+    # Reorder columns to have FileName first, then metadata, then other data
+    cols = ['FileName', 'project', 'recording_start_date', 'cycle', 'location', 'image_id', 'replicate', 'depth'] + \
+           [col for col in combined_df.columns if col not in ['FileName', 'project', 'recording_start_date', 'cycle', 'location', 'image_id', 'replicate', 'depth']]
     combined_df = combined_df[cols]
 
     return combined_df
@@ -126,7 +160,7 @@ def main(validated_arguments: ValidatedArguments):
                 output_count += 1
            
     # Step 3: Create a combined DataFrame from all processed regions and then save it
-    combined_df = create_dataframe(all_region_data)
+    combined_df = create_dataframe(all_region_data, validated_arguments)
     save_dataframe(combined_df, validated_arguments.output_path)
 
     print(f"[DETECTION]: Processing completed successfully!")
@@ -145,9 +179,11 @@ Examples:
     
     parser.add_argument('-i', '--input', required=True,
                         help='The path to the directory containing the flatfielded images for object detection. If following the default output path, this should be <output_directory>/project/date/cycle/location/flatfielded')
+    parser.add_argument('-d', '--depth-profiles', required=True,
+                        help='The path to the depth profiles .csv file.')
     parser.add_argument('-o', '--output', default='./output',
                         help='The root output directory for the detected object vignettes (individual images of detected objects). The full path for the saved images will be <output_directory>/project/date/cycle/location/vignettes')
-    
+
     args = parser.parse_args()
     
     try:

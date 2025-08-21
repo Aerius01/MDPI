@@ -76,6 +76,7 @@ def run_classification(data: ClassificationData):
     inference_engine.setup_model()
 
     try:
+        # Classify the vignettes
         results = inference_engine.process_location()
         
         # Save results to a .pkl file for use with the LabelChecker
