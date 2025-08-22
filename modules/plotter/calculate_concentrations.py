@@ -191,14 +191,10 @@ if __name__ == "__main__":
         print(f"Error: Input CSV file '{args.input}' is missing required columns: {', '.join(missing_columns)}")
         exit(1)
 
-    # --- Logging ---
-    print(f"Maximum plot depth: {config.max_depth}; with bin size: {config.bin_size};")
-    print("To change bin_size and, or max_depth parameters, change the values in the `if __name__ == '__main__'` block.")
-
     # --- Calculation ---
     concentration_data = calculate_concentration_data(data, config)
     
     # --- Data Saving ---
     output_path = os.path.join(os.path.dirname(args.input), config.output_file_name)
     concentration_data.to_csv(output_path, index=False)
-    print(f"Concentration data saved to: {output_path}") 
+    print(f"[PLOTTER]: Concentration data saved to: {output_path}") 

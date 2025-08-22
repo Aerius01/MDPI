@@ -195,7 +195,7 @@ def parse_flatfield_metadata_from_directory(directory_path: Path) -> Dict:
     file_metadata = {
         "recording_start_time": recording_start_time,
         "total_replicates": total_replicates,
-        "raw_img_paths": raw_img_paths,
+        "flatfield_img_paths": raw_img_paths,
     }
 
     return {**path_metadata, **file_metadata} 

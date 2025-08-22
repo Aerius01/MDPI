@@ -5,166 +5,74 @@ Usage: python -m modules.object_detection [options]
 """
 
 import argparse
-import os
 import sys
-from pathlib import Path
 import numpy as np
-import pandas as pd
-from tqdm import tqdm
 import cv2
-from modules.common.cli_utils import CommonCLI
-from modules.common.parser import parse_flatfield_metadata_from_directory
-from .detector import load_and_threshold_images, detect_objects
+from tqdm import tqdm
+
 from modules.common.constants import CONSTANTS
-from .detector import MappedImageRegions
-from dataclasses import dataclass
+from .detection_data import validate_arguments, DetectionData
+from .detector import Detector, process_vignette
+from .output_handler import OutputHandler
 
 # Destructured CONSTANTS for cleaner readability
-BATCH_SIZE= CONSTANTS.BATCH_SIZE
+BATCH_SIZE = CONSTANTS.BATCH_SIZE
 CSV_EXTENSION = CONSTANTS.CSV_EXTENSION
 CSV_SEPARATOR = CONSTANTS.CSV_SEPARATOR
 
-@dataclass
-class ValidatedArguments:
-    input_path: str
-    output_path: str
-    depth_profiles_df: pd.DataFrame
-    metadata: dict
+# Filtering constants
+THRESHOLD_VALUE = CONSTANTS.THRESHOLD_VALUE
+THRESHOLD_MAX = CONSTANTS.THRESHOLD_MAX
+MIN_OBJECT_SIZE = CONSTANTS.MIN_OBJECT_SIZE
+MAX_OBJECT_SIZE = CONSTANTS.MAX_OBJECT_SIZE
 
-def process_arguments(args: argparse.Namespace) -> ValidatedArguments:
-    # Get image paths from input directory
-    input_path = Path(args.input)
-    metadata = parse_flatfield_metadata_from_directory(input_path)
+# Region-oriented constants
+MAX_ECCENTRICITY = CONSTANTS.MAX_ECCENTRICITY
+MAX_MEAN_INTENSITY = CONSTANTS.MAX_MEAN_INTENSITY
+MIN_MAJOR_AXIS_LENGTH = CONSTANTS.MIN_MAJOR_AXIS_LENGTH
+MAX_MIN_INTENSITY = CONSTANTS.MAX_MIN_INTENSITY
+SMALL_OBJECT_THRESHOLD = CONSTANTS.SMALL_OBJECT_THRESHOLD
+MEDIUM_OBJECT_THRESHOLD = CONSTANTS.MEDIUM_OBJECT_THRESHOLD
+LARGE_OBJECT_PADDING = CONSTANTS.LARGE_OBJECT_PADDING
+SMALL_OBJECT_PADDING = CONSTANTS.SMALL_OBJECT_PADDING
+MEDIUM_OBJECT_PADDING = CONSTANTS.MEDIUM_OBJECT_PADDING
 
-    # Validate and create output path
-    output_dir = CommonCLI.validate_output_path(args.output)
-    date_str = metadata["recording_start_date"].strftime("%Y%m%d")
-    output_path = os.path.join(output_dir, metadata["project"], date_str, metadata["cycle"], metadata["location"], "vignettes")
-    os.makedirs(output_path, exist_ok=True)
-
-    # Validate the depth profiles path and read the data
-    depth_profiles_path = Path(args.depth_profiles)
-    if not depth_profiles_path.is_file():
-        raise FileNotFoundError(f"Depth profiles CSV file not found at: {depth_profiles_path}")
-    
-    depth_profiles_df = pd.read_csv(depth_profiles_path, sep=None, engine='python')
-
-    required_columns = ['image_id', 'depth']
-    if not all(col in depth_profiles_df.columns for col in required_columns):
-        raise ValueError(f"Required columns ('image_id', 'depth') not found in depth profiles file: {depth_profiles_path}")
-    
-    # Select only the required columns
-    depth_profiles_df = depth_profiles_df[['image_id', 'depth']]
-
-    return ValidatedArguments(input_path, output_path, depth_profiles_df, metadata)
-
-def process_vignette(mapped_region: MappedImageRegions, output_path: str):
+def run_detection(
+    data: DetectionData,
+    detector: Detector,
+    output_handler: OutputHandler
+):
     """
-    Prepare vignette data and yield it for each processed region.
-    
-    This function acts as a generator, yielding the region data, the vignette image,
-    and the path to save the vignette for each detected object in a mapped region *AS* 
-    the calling method also loops over the regions. In this way, the vignette data does 
-    not need to be entirely processed and then stored in memory, but can instead be processed 
-    and then saved as it is generated, immediately being released from memory. It's as though 
-    the outer loop and this inner loop are connected and running synchronously.
+    Main function to run the object detection process.
     """
-    img_name = Path(mapped_region.source_image_path).stem
-    image_id = int(img_name.split('_')[1])
-    for region in mapped_region.processed_regions:
-        
-        # Crop vignette
-        minr, maxr, minc, maxc = region.region_extents
-        vignette_img = mapped_region.source_image[minr:maxr, minc:maxc]
-        
-        # Construct vignette path
-        vignette_filename = f"{img_name}_vignette_{region.region_id}.png"
-        vignette_path = os.path.join(output_path, vignette_filename)
-    
-        # Add image-specific info to the region data
-        region.region_data['FileName'] = vignette_filename
-        region.region_data['replicate'] = region.region_id
-        region.region_data['image_id'] = image_id
-        
-        yield region.region_data, vignette_img, vignette_path
-
-def create_dataframe(data_list: list, validated_arguments: ValidatedArguments) -> pd.DataFrame:
-    # Create a combined DataFrame from all processed regions
-    if not data_list:
-        return pd.DataFrame()
-    
-    # Create dataframe
-    combined_df = pd.DataFrame(data_list)
-
-    # Join with depth profiles
-    combined_df = pd.merge(combined_df, validated_arguments.depth_profiles_df, on='image_id', how='left')
-
-    # Add metadata
-    metadata = validated_arguments.metadata
-    combined_df['project'] = metadata['project']
-    combined_df['recording_start_date'] = metadata['recording_start_date']
-    combined_df['cycle'] = metadata['cycle']
-    combined_df['location'] = metadata['location']
-    
-    # Sort the dataframe by image_id and then by replicate
-    combined_df = combined_df.sort_values(by=['image_id', 'replicate'])
-    
-    # Reorder columns to have FileName first, then metadata, then other data
-    cols = ['FileName', 'project', 'recording_start_date', 'cycle', 'location', 'image_id', 'replicate', 'depth'] + \
-           [col for col in combined_df.columns if col not in ['FileName', 'project', 'recording_start_date', 'cycle', 'location', 'image_id', 'replicate', 'depth']]
-    combined_df = combined_df[cols]
-
-    return combined_df
-
-def save_dataframe(combined_df: pd.DataFrame, output_path: str) -> None:
-    """Save detection results to CSV and text files."""
-
-    if combined_df.empty:
-        print(f"[DETECTION]: Detection completed. No objects detected.")
-        return
-
-    # Save results
-    print(f"[DETECTION]: Detection completed successfully! Total objects detected: {len(combined_df)}")
-
-    csv_output_file = os.path.join(Path(output_path).parent, f'object_data{CSV_EXTENSION}')
-    combined_df.to_csv(csv_output_file, sep=CSV_SEPARATOR, index=False)
-    print(f"[DETECTION]: Saved results to {csv_output_file}")
-
-def main(validated_arguments: ValidatedArguments):
-    image_paths = validated_arguments.metadata['raw_img_paths']
+    image_paths = data.flatfield_img_paths
     print(f"[DETECTION]: Found {len(image_paths)} flatfielded images")
 
-    # Step 2: Process images in batches to reduce peak memory usage
-    num_batches = int(np.ceil(len(image_paths) / BATCH_SIZE))
+    num_batches = int(np.ceil(len(image_paths) / detector.batch_size))
     print(f"[DETECTION]: Performing object detection in {num_batches} batches...")
     
     all_region_data = []
     output_count = 0
     
-    for i in tqdm(range(0, len(image_paths), BATCH_SIZE), desc='[DETECTION]'):
-        batch_end = i + BATCH_SIZE
+    for i in tqdm(range(0, len(image_paths), detector.batch_size), desc='[DETECTION]'):
+        batch_end = i + detector.batch_size
         batch_image_paths = image_paths[i:batch_end]
 
-        # Load and threshold only the current batch
-        batch_images, batch_binary_images = load_and_threshold_images(batch_image_paths)
+        batch_images, batch_binary_images = detector.load_and_threshold_images(batch_image_paths)
+        mapped_regions_batch = detector.detect_objects(batch_images, batch_binary_images, batch_image_paths)
 
-        # Process the batch to get regions mapped to each image
-        mapped_regions_batch = detect_objects(batch_images, batch_binary_images, batch_image_paths)
-
-        # Unpack the results, save vignettes, and collect data for CSV
         for mapped_region in mapped_regions_batch:
-            process_vignette_generator = process_vignette(mapped_region, validated_arguments.output_path)
+            process_vignette_generator = process_vignette(mapped_region, data.output_path)
             for region_data, vignette_img, vignette_path in process_vignette_generator:
                 all_region_data.append(region_data)
                 cv2.imwrite(vignette_path, vignette_img)
                 output_count += 1
            
-    # Step 3: Create a combined DataFrame from all processed regions and then save it
-    combined_df = create_dataframe(all_region_data, validated_arguments)
-    save_dataframe(combined_df, validated_arguments.output_path)
+    combined_df = output_handler.create_dataframe(all_region_data, data)
+    output_handler.save_dataframe(combined_df, data.output_path)
 
     print(f"[DETECTION]: Processing completed successfully!")
-    print(f"[DETECTION]: {output_count} vignettes saved to {validated_arguments.output_path}")
+    print(f"[DETECTION]: {output_count} vignettes saved to {data.output_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -187,10 +95,34 @@ Examples:
     args = parser.parse_args()
     
     try:
-        # Step 1: Process arguments
         print(f"[DETECTION]: Loading images from {args.input}")
-        validated_arguments = process_arguments(args)
-        main(validated_arguments)
+        detection_data = validate_arguments(args)
+
+        detector_config = {
+            'threshold_value': THRESHOLD_VALUE,
+            'threshold_max': THRESHOLD_MAX,
+            'min_object_size': MIN_OBJECT_SIZE,
+            'max_object_size': MAX_OBJECT_SIZE,
+            'max_eccentricity': MAX_ECCENTRICITY,
+            'max_mean_intensity': MAX_MEAN_INTENSITY,
+            'min_major_axis_length': MIN_MAJOR_AXIS_LENGTH,
+            'max_min_intensity': MAX_MIN_INTENSITY,
+            'small_object_threshold': SMALL_OBJECT_THRESHOLD,
+            'medium_object_threshold': MEDIUM_OBJECT_THRESHOLD,
+            'large_object_padding': LARGE_OBJECT_PADDING,
+            'small_object_padding': SMALL_OBJECT_PADDING,
+            'medium_object_padding': MEDIUM_OBJECT_PADDING,
+            'batch_size': BATCH_SIZE
+        }
+        detector = Detector(**detector_config)
+
+        output_handler_config = {
+            'csv_extension': CSV_EXTENSION,
+            'csv_separator': CSV_SEPARATOR
+        }
+        output_handler = OutputHandler(**output_handler_config)
+
+        run_detection(detection_data, detector, output_handler)
         
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

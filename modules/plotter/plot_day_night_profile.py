@@ -116,5 +116,4 @@ if __name__ == '__main__':
     os.makedirs(output_path, exist_ok=True)
 
     plot_day_night_profile(day_data, night_data, output_path, config)
-    
-    print(f'Plots for {args.day_csv_path} and {args.night_csv_path} saved in {output_path}.')
+    print(f"[PLOTTER]: Plots for {args.day_csv_path} and {args.night_csv_path} saved in {output_path}.")

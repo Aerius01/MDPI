@@ -102,6 +102,5 @@ if __name__ == '__main__':
     output_path = os.path.dirname(args.csv_path)
     plot_single_profile(input_csv, output_path, config)
     
-    # --- Logging ---
-    print(f'Plots for {args.csv_path} saved in {output_path}.') 
+    print(f"[PLOTTER]: Plots for {args.csv_path} saved in {output_path}.") 
 
