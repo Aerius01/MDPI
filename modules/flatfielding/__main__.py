@@ -135,5 +135,6 @@ Examples:
         main(validated_arguments)
         
     except Exception as e:
+        raise e
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1) 

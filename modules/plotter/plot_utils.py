@@ -38,8 +38,8 @@ def configure_axes(ax, max_depth, max_concentration, is_symmetric=False, depth_t
     ax.set_xticks(x_ticks)
     ax.set_xticklabels(x_labels)
 
-def save_plot(fig, output_path, plot_title):
+def save_plot(fig, output_path, file_name):
     """Saves the plot to the specified path."""
     os.makedirs(output_path, exist_ok=True)
-    plt.savefig(os.path.join(output_path, f'{plot_title}.png'), dpi=300)
+    plt.savefig(os.path.join(output_path, f'{file_name}'), dpi=300)
     plt.close(fig) 

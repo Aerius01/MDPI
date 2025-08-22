@@ -11,6 +11,8 @@ from modules.common.constants import CONSTANTS
 from .run import run_classification
 from modules.common.parser import parse_vignette_metadata
 from pathlib import Path
+from .inference_engine import InferenceEngine
+from .processor import ClassificationProcessor
 
 # Destructure constants
 DEFAULT_BATCH_SIZE = CONSTANTS.CLASSIFICATION_BATCH_SIZE
@@ -50,7 +52,12 @@ Examples:
 
         # Pass the CLI arguments and metadata for validation, before running the classification.
         classification_data = validate_arguments(**vars(args), **metadata)
-        run_classification(classification_data)
+
+        # Initialize the inference engine and classification processor
+        inference_engine = InferenceEngine(classification_data)
+        processor = ClassificationProcessor()
+
+        run_classification(classification_data, inference_engine, processor)
         
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
