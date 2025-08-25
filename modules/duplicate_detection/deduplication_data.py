@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import argparse
-from modules.common.cli_utils import CommonCLI
+from modules.duplicate_detection.utils import get_image_group_from_folder
 
 @dataclass
 class DeduplicationData:
@@ -15,7 +15,7 @@ def process_arguments(args: argparse.Namespace) -> DeduplicationData:
     
     # Get image paths from input directory
     print(f"[DUPLICATES]: Loading images from {args.input}")
-    image_paths = CommonCLI.get_image_group_from_folder(args.input)
+    image_paths = get_image_group_from_folder(args.input)
     print(f"[DUPLICATES]: Found {len(image_paths)} images")
     
     return DeduplicationData(

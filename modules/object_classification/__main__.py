@@ -9,7 +9,7 @@ import sys
 from .classification_data import validate_arguments
 from modules.common.constants import CONSTANTS
 from .run import run_classification
-from modules.common.parser import parse_vignette_metadata
+from .utils import parse_vignette_metadata
 from pathlib import Path
 from .inference_engine import InferenceEngine
 from .processor import ClassificationProcessor

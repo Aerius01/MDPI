@@ -5,7 +5,7 @@ import pandas as pd
 import os
 from modules.common.parser import parse_metadata
 from modules.common.constants import CONSTANTS
-from modules.common.cli_utils import CommonCLI
+from modules.common.fs_utils import ensure_dir
 
 # Destructured CONSTANTS for cleaner readability
 BATCH_SIZE = CONSTANTS.BATCH_SIZE
@@ -34,7 +34,7 @@ def process_arguments(args: argparse.Namespace) -> FlatfieldingData:
     overlap_map = pd.Series(depth_df.pixel_overlap.values, index=depth_df.image_path).to_dict()
 
     # Validate and create output path
-    output_dir = CommonCLI.validate_output_path(args.output)
+    output_dir = ensure_dir(args.output)
     date_str = metadata["recording_start_date"].strftime("%Y%m%d")
     output_path = os.path.join(output_dir, metadata["project"], date_str, metadata["cycle"], metadata["location"], 
                               "flatfielded_images")

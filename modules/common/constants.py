@@ -1,91 +1,81 @@
-import re
-from dateutil import relativedelta
 from dataclasses import dataclass, field
 from typing import List, Tuple
 
 @dataclass(frozen=True)
 class ProcessingConstants:
-    """Centralized processing constants."""
-    # Batch processing
-    BATCH_SIZE: int = 10 # How many images to process at a given time?
-    
-    # Empirical flatfielding factor --> set by Tim W. & Jens N.
-    NORMALIZATION_FACTOR: int = 235
-    
+    """Centralized processing constants grouped by module for readability.
+
+    The attributes are organized in the same order as the pipeline:
+    depth profiling → flatfielding → object detection → object classification.
+    Shared items come first. Names are preserved to avoid breaking imports.
+    """
+
+    # ── Shared/common (used across modules) ────────────────────────────────────
+    BATCH_SIZE: int = 10  # How many images to process at a given time?
+
     # File formats
     JPEG_EXTENSION: str = '.jpeg'
     TIFF_EXTENSION: str = '.tiff'
     CSV_EXTENSION: str = '.csv'
-    
-    # CSV processing --> currently set for reading the pressure sensor data .csv file
-    CSV_SEPARATOR: str = ';' # How are columns delineated?
-    CSV_HEADER_ROW: int = 6 # How many rows to skip before the header?
-    CSV_COLUMNS: Tuple[int, int] = (0, 1) # Which columns to read?
-    CSV_SKIPFOOTER: int = 1 # How many rows to skip after the footer?
 
-    # Duplicate detection
+    # Shared image geometry used for depth calculations
+    # The MDPI is placed horizontally as it moves through the water column,
+    # meaning that images are vertical. 4.3 cm is the height of the field of view.
+    IMAGE_HEIGHT_CM: float = 4.3
+    IMAGE_HEIGHT_PIXELS: int = 2048
+
+    # ── Duplicate detection utilities ─────────────────────────────────────────
     DUPLICATE_DETECTION_DISPLAY_SIZE: Tuple[int, int] = (500, 500)
     DUPLICATE_DETECTION_REMOVE: bool = False
     DUPLICATE_DETECTION_SHOW_MONTAGES: bool = True
-    
-    # Depth profiling: convert depth values to meters
+
+    # ── Depth profiling module ─────────────────────────────────────────────────
+    # CSV processing for reading the pressure sensor data .csv file
+    CSV_SEPARATOR: str = ';'  # How are columns delineated?
+    CSV_HEADER_ROW: int = 6   # How many rows to skip before the header?
+    CSV_COLUMNS: Tuple[int, int] = (0, 1)  # Which columns to read?
+    CSV_SKIPFOOTER: int = 1   # How many rows to skip after the footer?
+
+    # Convert pressure sensor values to depth (meters)
     PRESSURE_SENSOR_DEPTH_MULTIPLIER: float = 10.0
-    
-    # Object detection thresholding
+
+    # Depth overlap correction
+    OVERLAP_CORRECTION_DEPTH_MULTIPLIER: int = 100
+
+    # ── Flatfielding module ────────────────────────────────────────────────────
+    # Empirical flatfielding factor → set by Tim W. & Jens N.
+    NORMALIZATION_FACTOR: int = 235
+
+    # ── Object detection module ────────────────────────────────────────────────
+    # Thresholding
     THRESHOLD_VALUE: int = 190
     THRESHOLD_MAX: int = 255
     
-    # Object size filtering --> the pixel areal limit required for us to identify the object, will need to change with MDPI
+    # Object size filtering --> the pixel areal limit required for us to 
+    # identify the object, will need to change with MDPI
     MIN_OBJECT_SIZE: int = 75
-    MAX_OBJECT_SIZE: int = 5000 # potentially obsolete
-    
+    MAX_OBJECT_SIZE: int = 5000  # potentially obsolete
+
     # Region filtering criteria
     MAX_ECCENTRICITY: float = 0.97
     MAX_MEAN_INTENSITY: int = 130
     MIN_MAJOR_AXIS_LENGTH: int = 25
     MAX_MIN_INTENSITY: int = 65
-    
+
     # Object cropping parameters
     SMALL_OBJECT_PADDING: int = 25
     MEDIUM_OBJECT_PADDING: int = 30
     LARGE_OBJECT_PADDING: int = 40
     SMALL_OBJECT_THRESHOLD: int = 40
     MEDIUM_OBJECT_THRESHOLD: int = 50
-    
-    # Depth overlap correction
-    OVERLAP_CORRECTION_DEPTH_MULTIPLIER: int = 100
-    # The MDPI is placed horizontally as it moves through the water column, meaning that images are vertical. 4.3 cm is the height of the field of view.
-    IMAGE_HEIGHT_CM: float = 4.3 
-    IMAGE_HEIGHT_PIXELS: int = 2048
 
-    # Object classification
+    # ── Object classification module ───────────────────────────────────────────
     CLASSIFICATION_BATCH_SIZE: int = 32
     CLASSIFICATION_INPUT_SIZE: int = 50
     CLASSIFICATION_INPUT_DEPTH: int = 1
-    CLASSIFICATION_CATEGORIES: List[str] = field(default_factory=lambda: ['cladocera', 'copepod', 'junk', 'rotifer'])
-
-@dataclass(frozen=True)
-class PlottingConstants:
-    """Centralized plotting constants."""
-    # Plot aesthetics
-    FIGSIZE: Tuple[float, float] = (10, 17.5)
-    DAY_COLOR: str = 'white'
-    NIGHT_COLOR: str = 'grey'
-    EDGE_COLOR: str = 'black'
-    ALIGN: str = 'edge'
-    LEGEND_FONTSIZE: int = 20
-    FILE_FORMAT: str = 'png'
-
-    # Column validation
-    SINGLE_PROFILE_REQUIRED_COLUMNS: List[str] = field(default_factory=lambda: [
-        'project', 'recording_start_date', 'cycle',
-        'label', 'depth', 'concentration', 'bin_size'
-    ])
-    DAY_NIGHT_PROFILE_REQUIRED_COLUMNS: List[str] = field(default_factory=lambda: [
-        'project', 'recording_start_date', 'label', 
-        'depth', 'concentration', 'bin_size'
-    ])
+    CLASSIFICATION_CATEGORIES: List[str] = field(
+        default_factory=lambda: ['cladocera', 'copepod', 'junk', 'rotifer']
+    )
 
 # Global instance for easy access
 CONSTANTS = ProcessingConstants()
-PLOTTING_CONSTANTS = PlottingConstants()

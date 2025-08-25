@@ -5,8 +5,9 @@ import os
 from typing import Tuple, List
 import datetime
 
-from modules.common.parser import parse_metadata, find_single_csv_file
-from modules.common.cli_utils import CommonCLI
+from modules.common.parser import parse_metadata
+from .utils import find_single_csv_file
+from modules.common.fs_utils import ensure_dir
 
 @dataclass(frozen=True)
 class CsvParams:
@@ -73,7 +74,7 @@ def process_arguments(
     
     pressure_sensor_csv_path = find_single_csv_file(input_path)
 
-    output_dir = CommonCLI.validate_output_path(args.output)
+    output_dir = ensure_dir(args.output)
     date_str = run_metadata.recording_start_date.strftime("%Y%m%d")
     output_path = os.path.join(
         output_dir, 

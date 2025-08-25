@@ -1,8 +1,8 @@
 import argparse
 from pathlib import Path
 import pandas as pd
-from modules.common.cli_utils import CommonCLI
-from modules.common.parser import parse_flatfield_metadata_from_directory
+from modules.common.fs_utils import ensure_dir
+from .utils import parse_flatfield_metadata_from_directory
 import os
 from dataclasses import dataclass, fields
 
@@ -37,7 +37,7 @@ def validate_arguments(args: argparse.Namespace) -> DetectionData:
     input_path = Path(args.input)
     metadata = parse_flatfield_metadata_from_directory(input_path)
 
-    output_dir = CommonCLI.validate_output_path(args.output)
+    output_dir = ensure_dir(args.output)
     date_str = metadata["recording_start_date"].strftime("%Y%m%d")
     output_path = os.path.join(output_dir, metadata["project"], date_str, metadata["cycle"], metadata["location"], "vignettes")
     os.makedirs(output_path, exist_ok=True)
