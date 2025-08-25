@@ -5,90 +5,26 @@ Usage: python3 -m modules.depth_profiling [options]
 """
 import argparse
 import sys
-from pathlib import Path
-import os
-from dataclasses import dataclass
-from modules.common.cli_utils import CommonCLI
-from modules.common.parser import parse_metadata, find_single_csv_file
-from .profiler import DepthProfiler
-import datetime
-from modules.common.constants import CONSTANTS
 
-# Destructured CONSTANTS for cleaner readability
-CSV_EXTENSION = CONSTANTS.CSV_EXTENSION
+from modules.common.constants import CONSTANTS
+from .depth_profile_data import CsvParams, DepthParams, process_arguments
+from .profiler import profile_depths
+
+# Destructured CONSTANTS for dependency injection
 CSV_SEPARATOR = CONSTANTS.CSV_SEPARATOR
 CSV_HEADER_ROW = CONSTANTS.CSV_HEADER_ROW
 CSV_COLUMNS = CONSTANTS.CSV_COLUMNS
 CSV_SKIPFOOTER = CONSTANTS.CSV_SKIPFOOTER
+CSV_EXTENSION = CONSTANTS.CSV_EXTENSION
 PRESSURE_SENSOR_DEPTH_MULTIPLIER = CONSTANTS.PRESSURE_SENSOR_DEPTH_MULTIPLIER
+IMAGE_HEIGHT_CM = CONSTANTS.IMAGE_HEIGHT_CM
+IMAGE_HEIGHT_PIXELS = CONSTANTS.IMAGE_HEIGHT_PIXELS
+OVERLAP_CORRECTION_DEPTH_MULTIPLIER = CONSTANTS.OVERLAP_CORRECTION_DEPTH_MULTIPLIER
 TIME_COLUMN_NAME = "time"
 DEPTH_COLUMN_NAME = "depth"
 
-@dataclass
-class ValidatedArguments:
-    metadata: dict
-    pressure_sensor_csv_path: str
-    output_path: str
-    capture_rate: float
-
-def process_arguments(args: argparse.Namespace) -> ValidatedArguments:
-    # Validate capture rate
-    if args.capture_rate <= 0:
-        raise ValueError("Capture rate must be a positive number.")
-
-    # Get image paths from input directory
-    input_path = Path(args.input)
-    metadata = parse_metadata(input_path)
-    pressure_sensor_csv_path = find_single_csv_file(input_path)
-
-    # Validate and create output path
-    output_dir = CommonCLI.validate_output_path(args.output)
-    date_str = metadata["recording_start_date"].strftime("%Y%m%d")
-    output_path = os.path.join(output_dir, metadata["project"], date_str, metadata["cycle"], metadata["location"])
-    os.makedirs(output_path, exist_ok=True)
-    
-    return ValidatedArguments(
-        metadata=metadata,
-        pressure_sensor_csv_path=pressure_sensor_csv_path,
-        output_path=output_path,
-        capture_rate=args.capture_rate
-    )
-
-def main(validated_arguments: ValidatedArguments):
-    metadata = validated_arguments.metadata
-    pressure_sensor_csv_path = validated_arguments.pressure_sensor_csv_path
-    output_path = validated_arguments.output_path
-    capture_rate = validated_arguments.capture_rate
-
-    print(f"[PROFILING]: Found {len(metadata['raw_img_paths'])} images")
-
-    # Some additional metadata processing
-    start_datetime = datetime.datetime.combine(metadata['recording_start_date'], metadata['recording_start_time'])
-    
-    # Run depth profiling
-    date_str = metadata["recording_start_date"].strftime("%Y%m%d")
-    print(f"[PROFILING]: Processing group: {metadata['project']}/{date_str}/{metadata['cycle']}/{metadata['location']}")
-    profiler = DepthProfiler(
-        csv_separator=CSV_SEPARATOR,
-        csv_header_row=CSV_HEADER_ROW,
-        csv_columns=CSV_COLUMNS,
-        csv_skipfooter=CSV_SKIPFOOTER,
-        depth_multiplier=PRESSURE_SENSOR_DEPTH_MULTIPLIER,
-        time_column_name=TIME_COLUMN_NAME,
-        depth_column_name=DEPTH_COLUMN_NAME
-    )
-    df = profiler.map_images_to_depths(metadata['raw_img_paths'], pressure_sensor_csv_path, start_datetime, capture_rate)
-    
-    # Save depth data to CSV
-    if df is not None:
-        output_csv_path = os.path.join(output_path, "depth_profiles" + CSV_EXTENSION)
-        df.to_csv(output_csv_path, index=False)
-        print(f"[PROFILING]: Successfully saved data to {output_csv_path}")
-        print(f"[PROFILING]: Processing completed successfully!")
-    else:
-        raise Exception("Failed to process depth data.")
-
-if __name__ == "__main__":
+def main():
+    """Main function to run the depth profiling process."""
     parser = argparse.ArgumentParser(
         description='Process images for depth profiling using CSV depth data.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -108,10 +44,34 @@ Examples:
     
     args = parser.parse_args()
 
+    csv_params = CsvParams(
+        separator=CSV_SEPARATOR,
+        header_row=CSV_HEADER_ROW,
+        columns=CSV_COLUMNS,
+        skipfooter=CSV_SKIPFOOTER,
+        extension=CSV_EXTENSION,
+        time_column_name=TIME_COLUMN_NAME,
+        depth_column_name=DEPTH_COLUMN_NAME
+    )
+    
+    depth_params = DepthParams(
+        pressure_sensor_depth_multiplier=PRESSURE_SENSOR_DEPTH_MULTIPLIER,
+        image_height_cm=IMAGE_HEIGHT_CM,
+        image_height_pixels=IMAGE_HEIGHT_PIXELS,
+        overlap_correction_depth_multiplier=OVERLAP_CORRECTION_DEPTH_MULTIPLIER
+    )
+
     try:
-        validated_arguments = process_arguments(args)
-        main(validated_arguments)
+        validated_arguments = process_arguments(
+            args, 
+            csv_params, 
+            depth_params
+        )
+        profile_depths(validated_arguments)
             
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1) 
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main() 

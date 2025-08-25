@@ -6,46 +6,22 @@ Usage: python -m modules.duplicate_detection [options]
 
 import argparse
 import sys
-from dataclasses import dataclass
-from modules.common.cli_utils import CommonCLI
 from modules.common.constants import CONSTANTS
-from .detector import process_images
+from .deduplication_data import DeduplicationData, process_arguments
+from .detector import deduplicate_images
 
 # Destructured CONSTANTS for cleaner readability
 DUPLICATE_DETECTION_DISPLAY_SIZE = CONSTANTS.DUPLICATE_DETECTION_DISPLAY_SIZE
 DUPLICATE_DETECTION_REMOVE = CONSTANTS.DUPLICATE_DETECTION_REMOVE
 DUPLICATE_DETECTION_SHOW_MONTAGES = CONSTANTS.DUPLICATE_DETECTION_SHOW_MONTAGES
 
-@dataclass
-class ValidatedArguments:
-    image_paths: list
-    display_size: tuple
-    remove_flag: bool
-    show_montages: bool
-
-def process_arguments(args: argparse.Namespace) -> ValidatedArguments:
-    # Handle montage display logic
-    show_montages = args.show_montages and not args.no_montages
-    
-    # Get image paths from input directory
-    print(f"[DUPLICATES]: Loading images from {args.input}")
-    image_paths = CommonCLI.get_image_group_from_folder(args.input)
-    print(f"[DUPLICATES]: Found {len(image_paths)} images")
-    
-    return ValidatedArguments(
-        image_paths=image_paths,
-        display_size=args.display_size,
-        remove_flag=args.remove,
-        show_montages=show_montages
-    )
-
-def main(validated_arguments: ValidatedArguments):
+def main(validated_arguments: DeduplicationData):
     # Run duplicate detection
-    removed_paths = process_images(validated_arguments.image_paths, validated_arguments.display_size, validated_arguments.remove_flag, validated_arguments.show_montages)
+    removed_paths = deduplicate_images(validated_arguments)
     removed_count = len(removed_paths)
     
     print(f"[DUPLICATES]: Processing completed.")
-    if validated_arguments.remove_flag:
+    if validated_arguments.remove:
         print(f"[DUPLICATES]: {removed_count} duplicate images were removed.")
     else:
         print(f"[DUPLICATES]: {removed_count} duplicate images were found (but not removed).")

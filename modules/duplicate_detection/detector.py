@@ -4,6 +4,7 @@ import os
 from tqdm import tqdm
 from tools.hash.image_hashing import ImageHash
 from typing import List, Dict, Tuple
+from modules.duplicate_detection.__main__ import DeduplicationData
 
 def _compute_hashes(image_paths: List[str]) -> Dict[str, List[str]]:
     """Compute hashes for all images and group by hash."""
@@ -45,20 +46,17 @@ def _handle_duplicates(hash_value: str, duplicate_paths: List[str], display_size
     
 # This is the heart of the duplicate detection module. It operates upon a group of image paths, 
 # directly modifying the directory where those images are stored.
-def process_images(image_paths: List[str], display_size: Tuple[int, int], remove: bool, show_montages: bool) -> List[str]:
+def deduplicate_images(deduplication_data: DeduplicationData) -> List[str]:
     """
     Main method to detect and process duplicates in a list of image paths.
     
     Args:
-        image_paths: A list of file paths to process.
-        display_size: The size to display images in montages.
-        remove: Whether to remove duplicate images.
-        show_montages: Whether to show montages of duplicate images.
+        deduplication_data: An object containing all the required data for deduplication.
         
     Returns:
         A list of paths for the duplicate images that were removed.
     """
-    hashes = _compute_hashes(image_paths)
+    hashes = _compute_hashes(deduplication_data.image_paths)
     
     print('[DUPLICATES]: Detecting duplicate images...')
     
@@ -66,7 +64,13 @@ def process_images(image_paths: List[str], display_size: Tuple[int, int], remove
     duplicate_hashes = {h: paths for h, paths in hashes.items() if len(paths) > 1}
     
     for hash_value, duplicate_paths in duplicate_hashes.items():
-        removed_in_group = _handle_duplicates(hash_value, duplicate_paths, display_size, remove, show_montages)
+        removed_in_group = _handle_duplicates(
+            hash_value, 
+            duplicate_paths, 
+            deduplication_data.display_size, 
+            deduplication_data.remove, 
+            deduplication_data.show_montages
+        )
         removed_paths.extend(removed_in_group)
         
     total_removed = len(removed_paths)

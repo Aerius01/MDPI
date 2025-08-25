@@ -10,8 +10,6 @@ from dataclasses import dataclass, fields
 class DetectionData:
     """
     A dataclass to hold all the necessary data for the object detection process.
-    It is initialized with a metadata dictionary and keyword arguments.
-    The constructor then assigns these values to the class attributes.
     """
     input_path: Path
     output_path: str
@@ -24,16 +22,13 @@ class DetectionData:
     location: str
     flatfield_img_paths: list[str]
 
-    def __init__(self, metadata: dict, **kwargs):
+    def __init__(self, **kwargs):
         """
-        Initializes the DetectionData object by setting attributes from keyword arguments
-        and the provided metadata dictionary.
+        Initializes the DetectionData object by setting attributes from keyword arguments.
         """
         for field in fields(self):
             if field.name in kwargs:
                 setattr(self, field.name, kwargs[field.name])
-            elif field.name in metadata:
-                setattr(self, field.name, metadata[field.name])
 
 def validate_arguments(args: argparse.Namespace) -> DetectionData:
     """
@@ -59,7 +54,7 @@ def validate_arguments(args: argparse.Namespace) -> DetectionData:
     depth_profiles_df = depth_profiles_df[['image_id', 'depth']]
 
     return DetectionData(
-        metadata=metadata,
+        **metadata,
         input_path=input_path,
         output_path=output_path,
         depth_profiles_df=depth_profiles_df
