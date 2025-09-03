@@ -30,17 +30,26 @@ class ProcessingConstants:
     DUPLICATE_DETECTION_SHOW_MONTAGES: bool = True
 
     # ── Depth profiling module ─────────────────────────────────────────────────
-    # CSV processing for reading the pressure sensor data .csv file
+    # Both cameras use semicolon as the separator
     CSV_SEPARATOR: str = ';'  # How are columns delineated?
-    CSV_HEADER_ROW: int = 6   # How many rows to skip before the header?
-    CSV_COLUMNS: Tuple[int, int] = (0, 1)  # Which columns to read?
+
+
+    # Old camera format defaults (used as fallback when auto-detection fails)
+    CSV_HEADER_ROW: int = 5   # Row index of the header (0-based)
     CSV_SKIPFOOTER: int = 1   # How many rows to skip after the footer?
+    OLD_FORMAT_TIME_COLUMN_SEARCH: str = "Time SN:"  # Old format time column search term
+    OLD_FORMAT_DEPTH_COLUMN_SEARCH: str = "bar"  # Old format depth column search term (pressure in bar)
+    PRESSURE_SENSOR_DEPTH_MULTIPLIER: float = 10.0  # Convert pressure sensor values to depth (meters)
 
-    # Convert pressure sensor values to depth (meters)
-    PRESSURE_SENSOR_DEPTH_MULTIPLIER: float = 10.0
+    # New camera format constants
+    NEW_FORMAT_HEADER_ROW: int = 0  # New format has single header line
+    NEW_FORMAT_SKIPFOOTER: int = 0  # New format has no footer to skip
+    NEW_FORMAT_TIME_COLUMN_NAME: str = "Date-Time"  # New format time column name
+    NEW_FORMAT_DEPTH_COLUMN_NAME: str = "Depth(m)"  # New format depth column name
+    NEW_FORMAT_PRESSURE_MULTIPLIER: float = 1.0  # New format already in meters
 
-    # Depth overlap correction
-    OVERLAP_CORRECTION_DEPTH_MULTIPLIER: int = 100
+    # Format-independent constants
+    OVERLAP_CORRECTION_DEPTH_MULTIPLIER: int = 100  # Depth overlap correction
 
     # ── Flatfielding module ────────────────────────────────────────────────────
     # Empirical flatfielding factor → set by Tim W. & Jens N.

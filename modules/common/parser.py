@@ -73,7 +73,7 @@ def _parse_file_metadata(directory_path: Path, recording_start_date: datetime.da
         if len(filename_parts) < 3:
             raise ValueError(f"Filename '{image_filename}' does not have enough parts separated by '_'. Expected format: '..._YYYYMMDD_HHMMSSmmm_replicate.ext'")
 
-        total_replicates = int(filename_parts[-1])
+        # Extract time and date from the last image (which has the highest replicate number)
         time_str = filename_parts[-2]
         date_from_filename_str = filename_parts[-3]
         date_from_filename = datetime.datetime.strptime(date_from_filename_str, "%Y%m%d").date()
@@ -83,6 +83,14 @@ def _parse_file_metadata(directory_path: Path, recording_start_date: datetime.da
             raise ValueError(f"Date in filename '{date_from_filename}' does not match date in path '{recording_start_date}'.")
 
         recording_start_time = _parse_hhmmssmmm(time_str)
+
+        # Determine if numbering is 0-based or 1-based by checking the first image (MDPI-dependent)
+        first_filename = filenames[0]
+        first_parts = Path(first_filename).stem.split("_")
+        first_replicate_id = int(first_parts[-1])
+        
+        # Calculate total_replicates: add 1 for 0-based numbering, use as-is for 1-based
+        total_replicates = int(filename_parts[-1]) + (1 if first_replicate_id == 0 else 0)
 
     except (IndexError, ValueError) as e:
         if isinstance(e, ValueError) and ("does not match" in str(e) or "incorrect length" in str(e) or "enough parts" in str(e)):

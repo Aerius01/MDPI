@@ -5,7 +5,7 @@ from datetime import datetime
 from dateutil import relativedelta
 from typing import List
 
-from .depth_profile_data import DepthProfilingData, CsvParams, DepthParams
+from .depth_profile_data import DepthProfilingData, CsvParams, DepthParams, find_column_indices
 
 def _load_pressure_sensor_csv(
     csv_path: str, 
@@ -13,20 +13,40 @@ def _load_pressure_sensor_csv(
     depth_multiplier: float
 ) -> pd.DataFrame:
     """Load and process CSV depth data."""
+    # Find column indices dynamically by column names
+    time_col_idx, depth_col_idx = find_column_indices(
+        csv_path,
+        csv_params.header_row,
+        csv_params.separator,
+        csv_params.time_column_name,
+        csv_params.depth_column_name
+    )
+    
+    # Use standardized column names for internal processing
+    time_col_name = "time"
+    depth_col_name = "depth"
+    
     pressure_sensor_df = pd.read_csv(
         csv_path, 
         sep=csv_params.separator, 
         header=csv_params.header_row,
-        usecols=list(csv_params.columns),
-        names=[csv_params.time_column_name, csv_params.depth_column_name], 
-        index_col=csv_params.time_column_name,
+        usecols=[time_col_idx, depth_col_idx],
+        names=[time_col_name, depth_col_name], 
+        index_col=time_col_name,
         skipfooter=csv_params.skipfooter, 
         engine='python'
     )
     
-    # Process timestamps and depths
-    pressure_sensor_df.index = pd.to_datetime(pressure_sensor_df.index, format='%d.%m.%Y %H:%M:%S.%f')
-    pressure_sensor_df[csv_params.depth_column_name] = pressure_sensor_df[csv_params.depth_column_name].str.replace(',', '.').astype(float) * depth_multiplier
+    # Process timestamps - detect format based on column search term
+    if csv_params.time_column_name == "Date-Time":
+        # New camera format: 29.07.2025 16:25:00,000
+        pressure_sensor_df.index = pd.to_datetime(pressure_sensor_df.index, format='%d.%m.%Y %H:%M:%S,%f')
+    else:
+        # Old camera format: 24.04.2023 22:34:54.402
+        pressure_sensor_df.index = pd.to_datetime(pressure_sensor_df.index, format='%d.%m.%Y %H:%M:%S.%f')
+    
+    # Process depths - replace comma with period and apply multiplier
+    pressure_sensor_df[depth_col_name] = pressure_sensor_df[depth_col_name].str.replace(',', '.').astype(float) * depth_multiplier
     
     return pressure_sensor_df
 
@@ -109,7 +129,7 @@ def profile_depths(data: DepthProfilingData):
             data.run_metadata.raw_img_paths, 
             depth_values, 
             overlaps, 
-            data.csv_params.depth_column_name
+            "depth"  # Use standardized column name
         )
         
         output_csv_path = os.path.join(data.output_path, "depth_profiles" + data.csv_params.extension)

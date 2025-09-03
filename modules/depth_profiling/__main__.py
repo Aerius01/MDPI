@@ -6,22 +6,8 @@ Usage: python3 -m modules.depth_profiling [options]
 import argparse
 import sys
 
-from modules.common.constants import CONSTANTS
-from .depth_profile_data import CsvParams, DepthParams, process_arguments
+from .depth_profile_data import process_arguments
 from .profiler import profile_depths
-
-# Destructured CONSTANTS for dependency injection
-CSV_SEPARATOR = CONSTANTS.CSV_SEPARATOR
-CSV_HEADER_ROW = CONSTANTS.CSV_HEADER_ROW
-CSV_COLUMNS = CONSTANTS.CSV_COLUMNS
-CSV_SKIPFOOTER = CONSTANTS.CSV_SKIPFOOTER
-CSV_EXTENSION = CONSTANTS.CSV_EXTENSION
-PRESSURE_SENSOR_DEPTH_MULTIPLIER = CONSTANTS.PRESSURE_SENSOR_DEPTH_MULTIPLIER
-IMAGE_HEIGHT_CM = CONSTANTS.IMAGE_HEIGHT_CM
-IMAGE_HEIGHT_PIXELS = CONSTANTS.IMAGE_HEIGHT_PIXELS
-OVERLAP_CORRECTION_DEPTH_MULTIPLIER = CONSTANTS.OVERLAP_CORRECTION_DEPTH_MULTIPLIER
-TIME_COLUMN_NAME = "time"
-DEPTH_COLUMN_NAME = "depth"
 
 def main():
     """Main function to run the depth profiling process."""
@@ -44,29 +30,9 @@ Examples:
     
     args = parser.parse_args()
 
-    csv_params = CsvParams(
-        separator=CSV_SEPARATOR,
-        header_row=CSV_HEADER_ROW,
-        columns=CSV_COLUMNS,
-        skipfooter=CSV_SKIPFOOTER,
-        extension=CSV_EXTENSION,
-        time_column_name=TIME_COLUMN_NAME,
-        depth_column_name=DEPTH_COLUMN_NAME
-    )
-    
-    depth_params = DepthParams(
-        pressure_sensor_depth_multiplier=PRESSURE_SENSOR_DEPTH_MULTIPLIER,
-        image_height_cm=IMAGE_HEIGHT_CM,
-        image_height_pixels=IMAGE_HEIGHT_PIXELS,
-        overlap_correction_depth_multiplier=OVERLAP_CORRECTION_DEPTH_MULTIPLIER
-    )
-
     try:
-        validated_arguments = process_arguments(
-            args, 
-            csv_params, 
-            depth_params
-        )
+        # All parameters are now automatically detected and configured
+        validated_arguments = process_arguments(args)
         profile_depths(validated_arguments)
             
     except Exception as e:

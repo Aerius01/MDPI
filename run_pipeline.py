@@ -28,8 +28,6 @@ from modules.common.constants import CONSTANTS
 
 # Depth profiling
 from modules.depth_profiling.depth_profile_data import (
-    CsvParams,
-    DepthParams,
     process_arguments as depth_process_arguments,
 )
 from modules.depth_profiling.profiler import profile_depths
@@ -68,33 +66,15 @@ DEFAULT_MAX_DEPTH = 18.0
 DEFAULT_CONCENTRATION_GROUPS = "copepod,cladocera"
 DEFAULT_IMG_DEPTH = 10.0
 DEFAULT_IMG_WIDTH = 0.42
-TIME_COLUMN_NAME = "time"
-DEPTH_COLUMN_NAME = "depth"
 CONCENTRATION_OUTPUT_FILENAME = "concentration_data.csv"
 OBJECT_DATA_CSV_FILENAME = "object_data.csv"
 
 
 def run_depth_profiling(input_dir: str, output_root: str, capture_rate: float) -> str:
     """Run depth profiling and return the base output path for this run."""
-    # Build CSV and depth params from constants
-    csv_params = CsvParams(
-        separator=CONSTANTS.CSV_SEPARATOR,
-        header_row=CONSTANTS.CSV_HEADER_ROW,
-        columns=CONSTANTS.CSV_COLUMNS,
-        skipfooter=CONSTANTS.CSV_SKIPFOOTER,
-        extension=CONSTANTS.CSV_EXTENSION,
-        time_column_name=TIME_COLUMN_NAME,
-        depth_column_name=DEPTH_COLUMN_NAME,
-    )
-    depth_params = DepthParams(
-        pressure_sensor_depth_multiplier=CONSTANTS.PRESSURE_SENSOR_DEPTH_MULTIPLIER,
-        image_height_cm=CONSTANTS.IMAGE_HEIGHT_CM,
-        image_height_pixels=CONSTANTS.IMAGE_HEIGHT_PIXELS,
-        overlap_correction_depth_multiplier=CONSTANTS.OVERLAP_CORRECTION_DEPTH_MULTIPLIER,
-    )
-
     args = SimpleNamespace(input=input_dir, output=output_root, capture_rate=capture_rate)
-    validated = depth_process_arguments(args, csv_params, depth_params)
+    # All parameters are now automatically detected and configured
+    validated = depth_process_arguments(args)
 
     profile_depths(validated)
 
