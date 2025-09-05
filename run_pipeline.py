@@ -64,6 +64,8 @@ from modules.plotter.calculate_concentrations import (
 )
 import pandas as pd
 
+OUTPUT_CSV_SEPARATOR = ';'
+
 # Global configuration defaults (not in CONSTANTS)
 DEFAULT_BIN_SIZE = 0.1
 DEFAULT_MAX_DEPTH = 18.0
@@ -122,7 +124,7 @@ def run_detection_step(flatfield_dir: str, depth_csv_path: str, output_root: str
         medium_object_padding=CONSTANTS.MEDIUM_OBJECT_PADDING,
         batch_size=CONSTANTS.BATCH_SIZE,
     )
-    output_handler = OutputHandler(csv_extension=CONSTANTS.CSV_EXTENSION, csv_separator=CONSTANTS.CSV_SEPARATOR)
+    output_handler = OutputHandler(csv_extension=CONSTANTS.CSV_EXTENSION, csv_separator=OUTPUT_CSV_SEPARATOR)
 
     run_detection(detection_data, detector, output_handler)
     return detection_data.output_path

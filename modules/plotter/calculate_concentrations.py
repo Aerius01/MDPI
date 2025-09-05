@@ -196,5 +196,5 @@ if __name__ == "__main__":
     
     # --- Data Saving ---
     output_path = os.path.join(os.path.dirname(args.input), config.output_file_name)
-    concentration_data.to_csv(output_path, index=False)
+    concentration_data.to_csv(output_path, index=False, sep=';')
     print(f"[PLOTTER]: Concentration data saved to: {output_path}") 

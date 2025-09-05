@@ -18,7 +18,7 @@ from .output_handler import OutputHandler
 # Destructured CONSTANTS for cleaner readability
 BATCH_SIZE = CONSTANTS.BATCH_SIZE
 CSV_EXTENSION = CONSTANTS.CSV_EXTENSION
-CSV_SEPARATOR = CONSTANTS.CSV_SEPARATOR
+OUTPUT_CSV_SEPARATOR = ';'
 
 # Filtering constants
 THRESHOLD_VALUE = CONSTANTS.THRESHOLD_VALUE
@@ -118,7 +118,7 @@ Examples:
 
         output_handler_config = {
             'csv_extension': CSV_EXTENSION,
-            'csv_separator': CSV_SEPARATOR
+            'csv_separator': OUTPUT_CSV_SEPARATOR
         }
         output_handler = OutputHandler(**output_handler_config)
 

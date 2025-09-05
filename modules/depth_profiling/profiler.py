@@ -4,49 +4,46 @@ import numpy as np
 from datetime import datetime
 from dateutil import relativedelta
 from typing import List
+from pathlib import Path
 
-from .depth_profile_data import DepthProfilingData, CsvParams, DepthParams, find_column_indices
+from .depth_profile_data import DepthProfilingData, CsvParams, DepthParams, read_csv_with_encodings
 
 def _load_pressure_sensor_csv(
     csv_path: str, 
     csv_params: CsvParams,
-    depth_multiplier: float
+    depth_multiplier: float,
+    camera_format: str
 ) -> pd.DataFrame:
-    """Load and process CSV depth data."""
-    # Find column indices dynamically by column names
-    time_col_idx, depth_col_idx = find_column_indices(
+    """Load and process CSV depth data using pandas chaining."""
+    df = read_csv_with_encodings(
         csv_path,
-        csv_params.header_row,
-        csv_params.separator,
-        csv_params.time_column_name,
-        csv_params.depth_column_name
-    )
-    
-    # Use standardized column names for internal processing
-    time_col_name = "time"
-    depth_col_name = "depth"
-    
-    pressure_sensor_df = pd.read_csv(
-        csv_path, 
-        sep=csv_params.separator, 
+        sep=csv_params.separator,
         header=csv_params.header_row,
-        usecols=[time_col_idx, depth_col_idx],
-        names=[time_col_name, depth_col_name], 
-        index_col=time_col_name,
-        skipfooter=csv_params.skipfooter, 
+        skipfooter=csv_params.skipfooter,
         engine='python'
     )
-    
-    # Process timestamps - detect format based on column search term
-    if csv_params.time_column_name == "Date-Time":
-        # New camera format: 29.07.2025 16:25:00,000
-        pressure_sensor_df.index = pd.to_datetime(pressure_sensor_df.index, format='%d.%m.%Y %H:%M:%S,%f')
-    else:
-        # Old camera format: 24.04.2023 22:34:54.402
-        pressure_sensor_df.index = pd.to_datetime(pressure_sensor_df.index, format='%d.%m.%Y %H:%M:%S.%f')
-    
-    # Process depths - replace comma with period and apply multiplier
-    pressure_sensor_df[depth_col_name] = pressure_sensor_df[depth_col_name].str.replace(',', '.').astype(float) * depth_multiplier
+
+    time_col = next((col for col in df.columns if csv_params.time_column_name.lower() in col.lower()), None)
+    depth_col = next((col for col in df.columns if csv_params.depth_column_name.lower() in col.lower()), None)
+
+    if not time_col:
+        raise ValueError(f"Time column containing '{csv_params.time_column_name}' not found.")
+    if not depth_col:
+        raise ValueError(f"Depth column containing '{csv_params.depth_column_name}' not found.")
+
+    # Define the correct time format based on camera type
+    time_format = '%d.%m.%Y %H:%M:%S,%f' if camera_format == "new" else '%d.%m.%Y %H:%M:%S.%f'
+
+    # Process the DataFrame using a clear, chained sequence of operations
+    pressure_sensor_df = (
+        df[[time_col, depth_col]]
+        .rename(columns={time_col: "time", depth_col: "depth"})
+        .assign(
+            time=lambda x: pd.to_datetime(x["time"], format=time_format),
+            depth=lambda x: pd.to_numeric(x["depth"].astype(str).str.replace(',', '.'), errors='coerce') * depth_multiplier
+        )
+        .set_index("time")
+    )
     
     return pressure_sensor_df
 
@@ -56,39 +53,43 @@ def _calculate_depths(
     recording_start_datetime: datetime, 
     capture_rate: float
 ) -> pd.Series:
-    # Convert capture rate (in Hz) to a timedelta object
-    timestep = relativedelta.relativedelta(microseconds=1/capture_rate*1000000)
+    """Calculate the depth for each image based on its timestamp."""
+    timestep = relativedelta.relatedelta(microseconds=1_000_000 / capture_rate)
     timestamps = [recording_start_datetime + (i * timestep) for i in range(len(image_paths))]
+    
+    # Find the nearest depth measurement for each image timestamp
     nearest_indices = pressure_sensor_df.index.get_indexer(timestamps, method='nearest')
-    return pressure_sensor_df.iloc[nearest_indices][pressure_sensor_df.columns[0]].values
+    return pressure_sensor_df.iloc[nearest_indices]['depth'].values
 
 def _calculate_pixel_overlap(
     depths: np.ndarray, 
     depth_params: DepthParams
 ) -> np.ndarray:
     """Calculate pixel overlaps for depth correction."""
-    image_bottom_depths = depths * depth_params.overlap_correction_depth_multiplier + depth_params.image_height_cm
-    image_top_depths = depths * depth_params.overlap_correction_depth_multiplier
+    # Calculate the depth of the top and bottom of each image in cm
+    image_top_depths_cm = depths * depth_params.overlap_correction_depth_multiplier
+    image_bottom_depths_cm = image_top_depths_cm + depth_params.image_height_cm
     
-    # Get the overlaps in cm
-    overlaps_cm = np.zeros(len(depths))
-    overlaps_cm[1:] = np.maximum(0, image_bottom_depths[:-1] - image_top_depths[1:])
+    # Calculate overlaps in cm, ensuring no negative values
+    overlaps_cm = np.zeros_like(depths, dtype=float)
+    overlaps_cm[1:] = np.maximum(0, image_bottom_depths_cm[:-1] - image_top_depths_cm[1:])
     
-    # Convert the cm overlaps to pixels
-    overlaps_pixels = np.round((overlaps_cm / depth_params.image_height_cm) * depth_params.image_height_pixels).astype(int)
-    return overlaps_pixels
+    # Convert overlaps to pixels
+    return np.round(
+        (overlaps_cm / depth_params.image_height_cm) * depth_params.image_height_pixels
+    ).astype(int)
 
 def _create_depth_dataframe(
     image_paths: List[str], 
     depth_values: pd.Series, 
-    overlaps: np.ndarray, 
-    depth_column_name: str
+    overlaps: np.ndarray
 ) -> pd.DataFrame:
-    image_ids = [int(os.path.splitext(os.path.basename(p))[0].split('_')[-1]) for p in image_paths]
+    """Create a DataFrame to store depth information for each image."""
+    image_ids = [int(Path(p).stem.split('_')[-1]) for p in image_paths]
     depth_mapping = {
         "image_path": [os.path.abspath(p) for p in image_paths],
         "image_id": image_ids,
-        depth_column_name: depth_values,
+        "depth": depth_values,
         "pixel_overlap": overlaps
     }
     return pd.DataFrame(depth_mapping)
@@ -96,9 +97,6 @@ def _create_depth_dataframe(
 def profile_depths(data: DepthProfilingData):
     """
     Processes a group of images to calculate depth for each one.
-
-    Args:
-        data (DepthProfilingData): A dataclass containing all necessary data for depth profiling.
     """
     if not data.run_metadata.raw_img_paths:
         print("[PROFILING]: Warning: Empty image group provided.")
@@ -110,7 +108,8 @@ def profile_depths(data: DepthProfilingData):
         pressure_sensor_df = _load_pressure_sensor_csv(
             data.pressure_sensor_csv_path,
             data.csv_params,
-            data.depth_params.pressure_sensor_depth_multiplier
+            data.depth_params.pressure_sensor_depth_multiplier,
+            data.camera_format
         )
         
         depth_values = _calculate_depths(
@@ -128,8 +127,7 @@ def profile_depths(data: DepthProfilingData):
         mapped_df = _create_depth_dataframe(
             data.run_metadata.raw_img_paths, 
             depth_values, 
-            overlaps, 
-            "depth"  # Use standardized column name
+            overlaps
         )
         
         output_csv_path = os.path.join(data.output_path, "depth_profiles" + data.csv_params.extension)

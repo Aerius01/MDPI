@@ -21,21 +21,18 @@ class ProcessingConstants:
     IMAGE_HEIGHT_PIXELS: int = 2048
 
     # ── Depth profiling module ─────────────────────────────────────────────────
-    # Both cameras use semicolon as the separator
-    CSV_SEPARATOR: str = ';'  # How are columns delineated?
-
-    # Old camera format defaults (used as fallback when auto-detection fails)
-    CSV_HEADER_ROW: int = 5   # Row index of the header (0-based)
-    CSV_SKIPFOOTER: int = 1   # How many rows to skip after the footer?
+    # Old camera format defaults
+    OLD_FORMAT_HEADER_ROW: int = 6   # Row index of the header (1-based for clarity)
+    OLD_FORMAT_SKIPFOOTER: int = 1   # How many rows to skip after the footer?
     OLD_FORMAT_TIME_COLUMN_SEARCH: str = "Time SN:"  # Old format time column search term
     OLD_FORMAT_DEPTH_COLUMN_SEARCH: str = "bar"  # Old format depth column search term (pressure in bar)
-    PRESSURE_SENSOR_DEPTH_MULTIPLIER: float = 10.0  # Convert pressure sensor values to depth (meters)
+    OLD_FORMAT_PRESSURE_MULTIPLIER: float = 10.0  # Convert pressure sensor values to depth (meters)
 
     # New camera format constants
     NEW_FORMAT_HEADER_ROW: int = 0  # New format has single header line
     NEW_FORMAT_SKIPFOOTER: int = 0  # New format has no footer to skip
-    NEW_FORMAT_TIME_COLUMN_NAME: str = "Date-Time"  # New format time column name
-    NEW_FORMAT_DEPTH_COLUMN_NAME: str = "Depth(m)"  # New format depth column name
+    NEW_FORMAT_TIME_COLUMN_SEARCH: str = "Date-Time"  # New format time column name
+    NEW_FORMAT_DEPTH_COLUMN_SEARCH: str = "Depth(m)"  # New format depth column name
     NEW_FORMAT_PRESSURE_MULTIPLIER: float = 1.0  # New format already in meters
 
     # Format-independent constants
