@@ -17,17 +17,8 @@ def parse_flatfield_metadata_from_directory(directory_path: Path) -> Dict:
     time_str = filenames[0].split('_')[0]
     recording_start_time = _parse_hhmmssmmm(time_str)
 
-    # To get total replicates, use the last (highest numbered) filename
-    # Filenames are sorted, so the last one has the highest replicate ID
-    last_filename = filenames[-1]
-    last_replicate_id = int(last_filename.split('_')[1].split('.')[0])
-    
-    # Determine if numbering is 0-based or 1-based by checking the first image (MDPI-dependent)
-    first_filename = filenames[0]
-    first_replicate_id = int(first_filename.split('_')[1].split('.')[0])
-    
-    # Calculate total_replicates: add 1 for 0-based numbering, use as-is for 1-based
-    total_replicates = last_replicate_id + (1 if first_replicate_id == 0 else 0)
+    # Total replicates is simply the number of image files in the directory
+    total_replicates = len(filenames)
 
     raw_img_paths = _build_image_paths(directory_path, filenames)
 

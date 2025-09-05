@@ -84,13 +84,8 @@ def _parse_file_metadata(directory_path: Path, recording_start_date: datetime.da
 
         recording_start_time = _parse_hhmmssmmm(time_str)
 
-        # Determine if numbering is 0-based or 1-based by checking the first image (MDPI-dependent)
-        first_filename = filenames[0]
-        first_parts = Path(first_filename).stem.split("_")
-        first_replicate_id = int(first_parts[-1])
-        
-        # Calculate total_replicates: add 1 for 0-based numbering, use as-is for 1-based
-        total_replicates = int(filename_parts[-1]) + (1 if first_replicate_id == 0 else 0)
+        # Total replicates is simply the number of image files in the directory
+        total_replicates = len(filenames)
 
     except (IndexError, ValueError) as e:
         if isinstance(e, ValueError) and ("does not match" in str(e) or "incorrect length" in str(e) or "enough parts" in str(e)):

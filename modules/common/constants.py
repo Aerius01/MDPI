@@ -12,10 +12,6 @@ class ProcessingConstants:
 
     # ── Shared/common (used across modules) ────────────────────────────────────
     BATCH_SIZE: int = 10  # How many images to process at a given time?
-
-    # File formats
-    JPEG_EXTENSION: str = '.jpeg'
-    TIFF_EXTENSION: str = '.tiff'
     CSV_EXTENSION: str = '.csv'
 
     # Shared image geometry used for depth calculations
@@ -24,15 +20,9 @@ class ProcessingConstants:
     IMAGE_HEIGHT_CM: float = 4.3
     IMAGE_HEIGHT_PIXELS: int = 2048
 
-    # ── Duplicate detection utilities ─────────────────────────────────────────
-    DUPLICATE_DETECTION_DISPLAY_SIZE: Tuple[int, int] = (500, 500)
-    DUPLICATE_DETECTION_REMOVE: bool = False
-    DUPLICATE_DETECTION_SHOW_MONTAGES: bool = True
-
     # ── Depth profiling module ─────────────────────────────────────────────────
     # Both cameras use semicolon as the separator
     CSV_SEPARATOR: str = ';'  # How are columns delineated?
-
 
     # Old camera format defaults (used as fallback when auto-detection fails)
     CSV_HEADER_ROW: int = 5   # Row index of the header (0-based)
@@ -71,7 +61,7 @@ class ProcessingConstants:
     MIN_MAJOR_AXIS_LENGTH: int = 25
     MAX_MIN_INTENSITY: int = 65
 
-    # Object cropping parameters
+    # Object cropping parameters in pixels
     SMALL_OBJECT_PADDING: int = 25
     MEDIUM_OBJECT_PADDING: int = 30
     LARGE_OBJECT_PADDING: int = 40

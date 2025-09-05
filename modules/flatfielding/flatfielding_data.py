@@ -10,7 +10,7 @@ from modules.common.fs_utils import ensure_dir
 # Destructured CONSTANTS for cleaner readability
 BATCH_SIZE = CONSTANTS.BATCH_SIZE
 NORMALIZATION_FACTOR = CONSTANTS.NORMALIZATION_FACTOR
-IMAGE_EXTENSION = CONSTANTS.JPEG_EXTENSION
+IMAGE_EXTENSION = '.jpeg'
 
 @dataclass
 class FlatfieldingData:

@@ -26,6 +26,10 @@ from types import SimpleNamespace
 # Common
 from modules.common.constants import CONSTANTS
 
+# Duplicate detection
+from modules.duplicate_detection.utils import process_arguments as duplicate_process_arguments
+from modules.duplicate_detection.detector import deduplicate_images
+
 # Depth profiling
 from modules.depth_profiling.depth_profile_data import (
     process_arguments as depth_process_arguments,
@@ -68,6 +72,13 @@ DEFAULT_IMG_DEPTH = 10.0
 DEFAULT_IMG_WIDTH = 0.42
 CONCENTRATION_OUTPUT_FILENAME = "concentration_data.csv"
 OBJECT_DATA_CSV_FILENAME = "object_data.csv"
+
+
+def run_duplicate_detection(input_dir: str):
+    """Run duplicate detection on raw images."""
+    args = SimpleNamespace(input=input_dir)
+    image_paths = duplicate_process_arguments(args)
+    deduplicate_images(image_paths)
 
 
 def run_depth_profiling(input_dir: str, output_root: str, capture_rate: float) -> str:
@@ -215,20 +226,24 @@ Examples:
         output_root = str(Path(args.output).resolve())
         model_dir = str(Path(args.model).resolve())
 
-        # 1) Depth profiling
+        # 1) Duplicate detection (pre-processing)
+        print("[PIPELINE]: Running duplicate detection...")
+        run_duplicate_detection(input_dir)
+
+        # 2) Depth profiling
         print("[PIPELINE]: Running depth profiling...")
         base_output_dir = run_depth_profiling(input_dir, output_root, args.capture_rate)
         depth_csv = os.path.join(base_output_dir, f"depth_profiles{CONSTANTS.CSV_EXTENSION}")
 
-        # 2) Flatfielding
+        # 3) Flatfielding
         print("[PIPELINE]: Running flatfielding...")
         flatfield_dir = run_flatfielding(input_dir, depth_csv, output_root)
 
-        # 3) Object detection
+        # 4) Object detection
         print("[PIPELINE]: Running object detection...")
         vignettes_dir = run_detection_step(flatfield_dir, depth_csv, output_root)
 
-        # 4) Classification
+        # 5) Classification
         print("[PIPELINE]: Running object classification...")
         classification_output_dir = run_classification_step(
             vignettes_dir=vignettes_dir,
@@ -239,7 +254,7 @@ Examples:
             input_depth=args.classification_input_depth,
         )
 
-        # 5) Concentration calculation
+        # 6) Concentration calculation
         print("[PIPELINE]: Calculating concentrations...")
         object_data_csv = os.path.join(classification_output_dir, OBJECT_DATA_CSV_FILENAME)
         groups = [g.strip() for g in args.groups.split(",") if g.strip()]
