@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-def setup_plot_aesthetics(ax, title, xlabel='Concentration (ind*L⁻¹)', ylabel='Depth (m)', title_fontsize=30, label_fontsize=30, tick_fontsize=30):
+def setup_plot_aesthetics(ax, title, xlabel='Concentration (ind*m⁻³)', ylabel='Depth (m)', title_fontsize=30, label_fontsize=30, tick_fontsize=30):
     """Sets labels, title, and font sizes for a plot."""
     ax.set_xlabel(xlabel, fontsize=label_fontsize)
     ax.set_ylabel(ylabel, fontsize=label_fontsize)

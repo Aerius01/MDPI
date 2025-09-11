@@ -51,7 +51,7 @@ def process_arguments(args: argparse.Namespace) -> FlatfieldingData:
 
     # Load and validate depth profiles
     print(f"[FLATFIELDING]: Loading depth profiles from {args.depth_profiles}")
-    depth_df = pd.read_csv(args.depth_profiles)
+    depth_df = pd.read_csv(args.depth_profiles, sep=';', engine='python')
     validate_depth_profiles(depth_df)
 
     # Create a mapping from absolute image path to pixel_overlap value

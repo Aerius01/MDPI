@@ -135,7 +135,7 @@ def profile_depths(data: DepthProfilingData):
         )
         
         output_csv_path = os.path.join(data.output_path, "depth_profiles" + data.csv_params.extension)
-        mapped_df.to_csv(output_csv_path, index=False)
+        mapped_df.to_csv(output_csv_path, index=False, sep=';')
         print(f"[PROFILING]: Successfully saved data to {output_csv_path}")
         print(f"[PROFILING]: Processing completed successfully!")
 

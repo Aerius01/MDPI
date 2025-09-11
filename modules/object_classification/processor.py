@@ -63,5 +63,5 @@ class ClassificationProcessor:
         print('[CLASSIFICATION]: Creating CSV output...')
         
         file_path = os.path.join(output_path, filename)
-        merged_df.to_csv(file_path, index=False)
+        merged_df.to_csv(file_path, index=False, sep=';')
         print(f"[CLASSIFICATION]: Updated existing CSV at {file_path}") 

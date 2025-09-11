@@ -94,8 +94,8 @@ if __name__ == '__main__':
 
     # --- Data Loading ---
     try:
-        day_data = pd.read_csv(args.day_csv_path)
-        night_data = pd.read_csv(args.night_csv_path)
+        day_data = pd.read_csv(args.day_csv_path, sep=';', engine='python')
+        night_data = pd.read_csv(args.night_csv_path, sep=';', engine='python')
     except FileNotFoundError as e:
         print(f"Error: Input file not found at {e.filename}")
         exit(1)

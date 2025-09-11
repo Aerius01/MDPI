@@ -87,7 +87,7 @@ if __name__ == '__main__':
 
     # --- Data Loading ---
     try:
-        input_csv = pd.read_csv(args.csv_path)
+        input_csv = pd.read_csv(args.csv_path, sep=';', engine='python')
     except FileNotFoundError:
         print(f"Error: Input file not found at {args.csv_path}")
         exit(1)

@@ -18,7 +18,6 @@ class ConcentrationConfig:
     max_depth: float
     bin_size: float
     output_file_name: str
-    groups: List[str]
     img_depth: float
     img_width: float
 
@@ -58,16 +57,17 @@ def depth_bin_offset(bin_sequence):
 def calculate_concentration(counts: np.ndarray, bin_size: float, img_depth: float, img_width: float) -> np.ndarray:
     """
     Python equivalent of CalculateConcentration.R
-    Calculates concentration [ind/l] from counts.
+    Calculates concentration [ind/m^3] from counts.
+    The volume is calculated in cubic meters (bin_size * img_depth * img_width).
     """
-    concentrations = np.round(counts / (bin_size * img_depth * img_width), decimals=1)
+    volume_m3 = bin_size * img_depth * img_width
+    concentrations = np.round(counts / volume_m3, decimals=1)
     return concentrations
 
 def get_concentration_data(
     data: pd.DataFrame, 
     bin_size: float, 
     depth_bins: Sequence[float], 
-    groups: List[str], 
     img_depth: float, 
     img_width: float
 ) -> pd.DataFrame:
@@ -76,6 +76,8 @@ def get_concentration_data(
     Calculates concentrations for each group and depth bin.
     """
     results_list = []
+    
+    groups = [group for group in data['label'].unique() if group != 'junk']
     
     # Calculate concentrations per group
     for group in groups:
@@ -89,7 +91,7 @@ def get_concentration_data(
             count = len(data_subset[data_subset['depth_bin'] == bin_depth])
             counts[i] = count
         
-        # Calculate concentrations [ind/l]
+        # Calculate concentrations [ind/m^3]
         concentrations = calculate_concentration(counts, bin_size, img_depth, img_width)
         
         # Extract common metadata once
@@ -136,7 +138,7 @@ def calculate_concentration_data(data: pd.DataFrame, config: ConcentrationConfig
     
     # Calculate concentrations per group and bin
     concentration_data = get_concentration_data(
-        data, config.bin_size, depth_bins, config.groups, config.img_depth, config.img_width
+        data, config.bin_size, depth_bins, config.img_depth, config.img_width
     )
     
     return concentration_data
@@ -146,7 +148,6 @@ if __name__ == "__main__":
     BIN_SIZE = 0.1
     MAX_DEPTH = 18.0
     FILE_NAME = "concentration_data.csv"
-    GROUPS = ['copepod', 'cladocera']
     IMG_DEPTH = 10.0
     IMG_WIDTH = 0.42
     REQUIRED_COLUMNS = [
@@ -162,7 +163,6 @@ if __name__ == "__main__":
         max_depth=MAX_DEPTH,
         bin_size=BIN_SIZE,
         output_file_name=FILE_NAME,
-        groups=GROUPS,
         img_depth=IMG_DEPTH,
         img_width=IMG_WIDTH
     )
@@ -180,16 +180,28 @@ if __name__ == "__main__":
             'replicate': str,
             'prediction': str,
             'label': str,
-            'FileName': str
-        })
+            'FileName': str,
+            'depth': float
+        }, engine='python')
     except FileNotFoundError:
         print(f"Error: Input file not found: {args.input}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError:
+        print(f"Error: The 'depth' column in '{args.input}' contains non-numeric values that could not be converted.", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error reading CSV file: {e}", file=sys.stderr)
         sys.exit(1)
 
     missing_columns = [col for col in REQUIRED_COLUMNS if col not in data.columns]
     if missing_columns:
-        print(f"Error: Input CSV file '{args.input}' is missing required columns: {', '.join(missing_columns)}")
-        exit(1)
+        print(f"Error: Input CSV file '{args.input}' is missing required columns: {', '.join(missing_columns)}", file=sys.stderr)
+        sys.exit(1)
+
+    for col in REQUIRED_COLUMNS:
+        if data[col].isnull().any():
+            print(f"Error: Input CSV file '{args.input}' contains missing values in required column: '{col}'", file=sys.stderr)
+            sys.exit(1)
 
     # --- Calculation ---
     concentration_data = calculate_concentration_data(data, config)

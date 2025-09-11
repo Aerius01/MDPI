@@ -81,12 +81,13 @@ from modules.plotter.calculate_concentrations import (
     ConcentrationConfig,
     calculate_concentration_data,
 )
+from modules.plotter.constants import PLOTTING_CONSTANTS
+from modules.plotter.plot_profile import PlotConfig, plot_single_profile
 import pandas as pd
 
 # Global configuration defaults (not in CONSTANTS)
 DEFAULT_BIN_SIZE = 0.1
 DEFAULT_MAX_DEPTH = 18.0
-DEFAULT_CONCENTRATION_GROUPS = "copepod,cladocera"
 DEFAULT_IMG_DEPTH = 10.0
 DEFAULT_IMG_WIDTH = 0.42
 CONCENTRATION_OUTPUT_FILENAME = "concentration_data.csv"
@@ -179,34 +180,49 @@ def run_concentration_step(
     object_data_csv: str,
     max_depth: float,
     bin_size: float,
-    groups: list[str],
     img_depth: float,
     img_width: float,
 ) -> str:
     """Run concentration calculation and return path to saved CSV."""
     # Load classification CSV (merged with detection)
-    data = pd.read_csv(object_data_csv, dtype={
+    data = pd.read_csv(object_data_csv, sep=';', dtype={
         'project': str,
         'cycle': str,
         'replicate': str,
         'prediction': str,
         'label': str,
         'FileName': str,
-    })
+    }, engine='python')
 
     config = ConcentrationConfig(
         max_depth=max_depth,
         bin_size=bin_size,
         output_file_name=CONCENTRATION_OUTPUT_FILENAME,
-        groups=groups,
         img_depth=img_depth,
         img_width=img_width,
     )
     concentration_df = calculate_concentration_data(data, config)
     output_path = os.path.join(os.path.dirname(object_data_csv), config.output_file_name)
-    concentration_df.to_csv(output_path, index=False)
+    concentration_df.to_csv(output_path, index=False, sep=';')
     print(f"[PLOTTER]: Concentration data saved to: {output_path}")
     return output_path
+
+
+def run_plotting_step(concentration_csv_path: str):
+    """Run plotting from a concentration data CSV."""
+    config = PlotConfig(
+        figsize=PLOTTING_CONSTANTS.FIGSIZE,
+        day_color=PLOTTING_CONSTANTS.DAY_COLOR,
+        night_color=PLOTTING_CONSTANTS.NIGHT_COLOR,
+        edge_color=PLOTTING_CONSTANTS.EDGE_COLOR,
+        align=PLOTTING_CONSTANTS.ALIGN,
+        file_format=PLOTTING_CONSTANTS.FILE_FORMAT
+    )
+
+    input_csv = pd.read_csv(concentration_csv_path, sep=';', engine='python')
+    output_path = os.path.dirname(concentration_csv_path)
+    plot_single_profile(input_csv, output_path, config)
+    print(f"[PLOTTER]: Plots for {concentration_csv_path} saved in {output_path}.")
 
 
 def main():
@@ -233,7 +249,6 @@ Examples:
     # Optional: concentration knobs (defaults mirror calculate_concentrations module)
     parser.add_argument("--bin-size", type=float, default=DEFAULT_BIN_SIZE)
     parser.add_argument("--max-depth", type=float, default=DEFAULT_MAX_DEPTH)
-    parser.add_argument("--groups", type=str, default=DEFAULT_CONCENTRATION_GROUPS, help="Comma-separated class labels to include")
     parser.add_argument("--img-depth", type=float, default=DEFAULT_IMG_DEPTH)
     parser.add_argument("--img-width", type=float, default=DEFAULT_IMG_WIDTH)
 
@@ -276,15 +291,17 @@ Examples:
         # 6) Concentration calculation
         print("[PIPELINE]: Calculating concentrations...")
         object_data_csv = os.path.join(classification_output_dir, OBJECT_DATA_CSV_FILENAME)
-        groups = [g.strip() for g in args.groups.split(",") if g.strip()]
-        run_concentration_step(
+        concentration_csv_path = run_concentration_step(
             object_data_csv=object_data_csv,
             max_depth=args.max_depth,
             bin_size=args.bin_size,
-            groups=groups,
             img_depth=args.img_depth,
             img_width=args.img_width,
         )
+
+        # 7) Plotting
+        print("[PIPELINE]: Generating plots...")
+        run_plotting_step(concentration_csv_path)
 
         print("[PIPELINE]: All steps completed successfully!")
     except Exception as e:
