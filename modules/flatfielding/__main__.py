@@ -23,7 +23,7 @@ Examples:
     parser.add_argument('-i', '--input', required=True,
                         help="Input directory containing the raw MDPI images (any of: '.png', '.jpg', '.jpeg', or '.tiff' format)")
     parser.add_argument('-d', '--depth-profiles', required=True,
-                        help='Path to the depth profiles CSV file which includes pixel overlap data.')
+                        help='Path to the depth profiles CSV file which includes the pixel overlap data.')
     parser.add_argument('-o', '--output', default='./output',
                         help='The root output directory for the flatfielded images. The full path for the images will be <output_directory>/project/date/cycle/location/flatfielded_images')
     

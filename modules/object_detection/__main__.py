@@ -11,31 +11,18 @@ import cv2
 from tqdm import tqdm
 
 from modules.common.constants import CONSTANTS
-from .detection_data import validate_arguments, DetectionData
+from .detection_data import (
+    validate_arguments, 
+    DetectionData,
+    get_detector_config,
+    OUTPUT_CSV_SEPARATOR
+)
 from .detector import Detector, process_vignette
 from .output_handler import OutputHandler
 
 # Destructured CONSTANTS for cleaner readability
 BATCH_SIZE = CONSTANTS.BATCH_SIZE
 CSV_EXTENSION = CONSTANTS.CSV_EXTENSION
-OUTPUT_CSV_SEPARATOR = ';'
-
-# Filtering constants
-THRESHOLD_VALUE = CONSTANTS.THRESHOLD_VALUE
-THRESHOLD_MAX = CONSTANTS.THRESHOLD_MAX
-MIN_OBJECT_SIZE = CONSTANTS.MIN_OBJECT_SIZE
-MAX_OBJECT_SIZE = CONSTANTS.MAX_OBJECT_SIZE
-
-# Region-oriented constants
-MAX_ECCENTRICITY = CONSTANTS.MAX_ECCENTRICITY
-MAX_MEAN_INTENSITY = CONSTANTS.MAX_MEAN_INTENSITY
-MIN_MAJOR_AXIS_LENGTH = CONSTANTS.MIN_MAJOR_AXIS_LENGTH
-MAX_MIN_INTENSITY = CONSTANTS.MAX_MIN_INTENSITY
-SMALL_OBJECT_THRESHOLD = CONSTANTS.SMALL_OBJECT_THRESHOLD
-MEDIUM_OBJECT_THRESHOLD = CONSTANTS.MEDIUM_OBJECT_THRESHOLD
-LARGE_OBJECT_PADDING = CONSTANTS.LARGE_OBJECT_PADDING
-SMALL_OBJECT_PADDING = CONSTANTS.SMALL_OBJECT_PADDING
-MEDIUM_OBJECT_PADDING = CONSTANTS.MEDIUM_OBJECT_PADDING
 
 def run_detection(
     data: DetectionData,
@@ -98,22 +85,8 @@ Examples:
         print(f"[DETECTION]: Loading images from {args.input}")
         detection_data = validate_arguments(args)
 
-        detector_config = {
-            'threshold_value': THRESHOLD_VALUE,
-            'threshold_max': THRESHOLD_MAX,
-            'min_object_size': MIN_OBJECT_SIZE,
-            'max_object_size': MAX_OBJECT_SIZE,
-            'max_eccentricity': MAX_ECCENTRICITY,
-            'max_mean_intensity': MAX_MEAN_INTENSITY,
-            'min_major_axis_length': MIN_MAJOR_AXIS_LENGTH,
-            'max_min_intensity': MAX_MIN_INTENSITY,
-            'small_object_threshold': SMALL_OBJECT_THRESHOLD,
-            'medium_object_threshold': MEDIUM_OBJECT_THRESHOLD,
-            'large_object_padding': LARGE_OBJECT_PADDING,
-            'small_object_padding': SMALL_OBJECT_PADDING,
-            'medium_object_padding': MEDIUM_OBJECT_PADDING,
-            'batch_size': BATCH_SIZE
-        }
+        detector_config = get_detector_config()
+        detector_config['batch_size'] = BATCH_SIZE
         detector = Detector(**detector_config)
 
         output_handler_config = {

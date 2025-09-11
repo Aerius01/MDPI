@@ -1,21 +1,25 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from pathlib import Path
 import pandas as pd
-from modules.common.constants import CONSTANTS
-from typing import Callable, Optional
+from typing import Callable, Optional, List
 from imutils import paths
 from datetime import date, time
 
-# Destructure constants
-DEFAULT_CATEGORIES = CONSTANTS.CLASSIFICATION_CATEGORIES
+# ─── O B J E C T · C L A S S I F I C A T I O N · P A R A M E T E R S ──────────────
+CLASSIFICATION_BATCH_SIZE: int = 32
+CLASSIFICATION_INPUT_SIZE: int = 50
+CLASSIFICATION_INPUT_DEPTH: int = 1
+CLASSIFICATION_CATEGORIES: List[str] = ['cladocera', 'copepod', 'junk', 'rotifer'] # The available classification categories
 
 # Hardcoded constants
-CSV_FILENAME = 'object_data.csv'
-PKL_FILENAME = 'object_data.pkl'
-LEFT_JOIN_KEY = 'FileName'
-MODEL_CHECKPOINT_FILENAME = 'model.ckpt'
-MODEL_CHECKPOINT_EXTENSIONS = ['meta', 'index', 'data-00000-of-00001']
+DETECTED_OBJECTS_CSV_FILENAME = 'object_data.csv' # The filename of the detected objects CSV file, the output of the object detection module
+OUTPUT_PKL_FILENAME = 'object_data.pkl' # The filename of the output classification pickle file (used for LabelChecker)
+LEFT_JOIN_KEY = 'FileName' # The column name used to join the detection and classification dataframes
+MODEL_CHECKPOINT_FILENAME = 'model.ckpt' # The filename of the model checkpoint file
+MODEL_CHECKPOINT_EXTENSIONS = ['meta', 'index', 'data-00000-of-00001'] # The extensions of the required model checkpoint files
+
+# The various metadata and CLI keys required by the classification module
 EXPECTED_METADATA_KEYS = [
     "project",
     "recording_start_date",
@@ -152,7 +156,7 @@ def validate_arguments(**kwargs) -> ClassificationData:
     output_path = Path(_validate_output_path(output_path))
 
     # The detection CSV file must exist and be non-empty
-    csv_path = os.path.join(output_path, CSV_FILENAME)
+    csv_path = os.path.join(output_path, DETECTED_OBJECTS_CSV_FILENAME)
     detection_df = _validate_detection_csv(csv_path)
 
     # Return the validated arguments    
@@ -163,10 +167,10 @@ def validate_arguments(**kwargs) -> ClassificationData:
         batch_size=kwargs["batch_size"],
         input_size=kwargs["input_size"],
         input_depth=kwargs["input_depth"],
-        categories=DEFAULT_CATEGORIES,
-        csv_filename=CSV_FILENAME,
+        categories=CLASSIFICATION_CATEGORIES,
+        csv_filename=DETECTED_OBJECTS_CSV_FILENAME,
         detection_df=detection_df,
-        pkl_filename=PKL_FILENAME,
+        pkl_filename=OUTPUT_PKL_FILENAME,
         left_join_key=LEFT_JOIN_KEY,
         project=kwargs["project"],
         recording_start_date=kwargs["recording_start_date"],

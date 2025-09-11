@@ -45,6 +45,20 @@ from modules.flatfielding.flatfielding import flatfield_images
 # Object detection
 from modules.object_detection.detection_data import (
     validate_arguments as detection_validate_arguments,
+    THRESHOLD_VALUE,
+    THRESHOLD_MAX,
+    MIN_OBJECT_SIZE,
+    MAX_OBJECT_SIZE,
+    MAX_ECCENTRICITY,
+    MAX_MEAN_INTENSITY,
+    MIN_MAJOR_AXIS_LENGTH,
+    MAX_MIN_INTENSITY,
+    SMALL_OBJECT_PADDING,
+    MEDIUM_OBJECT_PADDING,
+    LARGE_OBJECT_PADDING,
+    SMALL_OBJECT_THRESHOLD,
+    MEDIUM_OBJECT_THRESHOLD,
+    OUTPUT_CSV_SEPARATOR
 )
 from modules.object_detection.__main__ import run_detection
 from modules.object_detection.detector import Detector
@@ -52,7 +66,12 @@ from modules.object_detection.output_handler import OutputHandler
 
 # Classification
 from modules.object_classification.utils import parse_vignette_metadata
-from modules.object_classification.classification_data import validate_arguments as cls_validate_arguments
+from modules.object_classification.classification_data import (
+    validate_arguments as cls_validate_arguments,
+    CLASSIFICATION_BATCH_SIZE,
+    CLASSIFICATION_INPUT_SIZE,
+    CLASSIFICATION_INPUT_DEPTH
+)
 from modules.object_classification.inference_engine import InferenceEngine
 from modules.object_classification.processor import ClassificationProcessor
 from modules.object_classification.run import run_classification
@@ -63,8 +82,6 @@ from modules.plotter.calculate_concentrations import (
     calculate_concentration_data,
 )
 import pandas as pd
-
-OUTPUT_CSV_SEPARATOR = ';'
 
 # Global configuration defaults (not in CONSTANTS)
 DEFAULT_BIN_SIZE = 0.1
@@ -109,19 +126,19 @@ def run_detection_step(flatfield_dir: str, depth_csv_path: str, output_root: str
     detection_data = detection_validate_arguments(args)
 
     detector = Detector(
-        threshold_value=CONSTANTS.THRESHOLD_VALUE,
-        threshold_max=CONSTANTS.THRESHOLD_MAX,
-        min_object_size=CONSTANTS.MIN_OBJECT_SIZE,
-        max_object_size=CONSTANTS.MAX_OBJECT_SIZE,
-        max_eccentricity=CONSTANTS.MAX_ECCENTRICITY,
-        max_mean_intensity=CONSTANTS.MAX_MEAN_INTENSITY,
-        min_major_axis_length=CONSTANTS.MIN_MAJOR_AXIS_LENGTH,
-        max_min_intensity=CONSTANTS.MAX_MIN_INTENSITY,
-        small_object_threshold=CONSTANTS.SMALL_OBJECT_THRESHOLD,
-        medium_object_threshold=CONSTANTS.MEDIUM_OBJECT_THRESHOLD,
-        large_object_padding=CONSTANTS.LARGE_OBJECT_PADDING,
-        small_object_padding=CONSTANTS.SMALL_OBJECT_PADDING,
-        medium_object_padding=CONSTANTS.MEDIUM_OBJECT_PADDING,
+        threshold_value=THRESHOLD_VALUE,
+        threshold_max=THRESHOLD_MAX,
+        min_object_size=MIN_OBJECT_SIZE,
+        max_object_size=MAX_OBJECT_SIZE,
+        max_eccentricity=MAX_ECCENTRICITY,
+        max_mean_intensity=MAX_MEAN_INTENSITY,
+        min_major_axis_length=MIN_MAJOR_AXIS_LENGTH,
+        max_min_intensity=MAX_MIN_INTENSITY,
+        small_object_threshold=SMALL_OBJECT_THRESHOLD,
+        medium_object_threshold=MEDIUM_OBJECT_THRESHOLD,
+        large_object_padding=LARGE_OBJECT_PADDING,
+        small_object_padding=SMALL_OBJECT_PADDING,
+        medium_object_padding=MEDIUM_OBJECT_PADDING,
         batch_size=CONSTANTS.BATCH_SIZE,
     )
     output_handler = OutputHandler(csv_extension=CONSTANTS.CSV_EXTENSION, csv_separator=OUTPUT_CSV_SEPARATOR)
@@ -209,9 +226,9 @@ Examples:
     parser.add_argument("-m", "-\u002Dmodel", dest="model", required=True, help="Path to trained model directory containing model.ckpt files")
 
     # Optional: classification knobs
-    parser.add_argument("--classification-batch-size", type=int, default=CONSTANTS.CLASSIFICATION_BATCH_SIZE)
-    parser.add_argument("--classification-input-size", type=int, default=CONSTANTS.CLASSIFICATION_INPUT_SIZE)
-    parser.add_argument("--classification-input-depth", type=int, default=CONSTANTS.CLASSIFICATION_INPUT_DEPTH)
+    parser.add_argument("--classification-batch-size", type=int, default=CLASSIFICATION_BATCH_SIZE)
+    parser.add_argument("--classification-input-size", type=int, default=CLASSIFICATION_INPUT_SIZE)
+    parser.add_argument("--classification-input-depth", type=int, default=CLASSIFICATION_INPUT_DEPTH)
 
     # Optional: concentration knobs (defaults mirror calculate_concentrations module)
     parser.add_argument("--bin-size", type=float, default=DEFAULT_BIN_SIZE)

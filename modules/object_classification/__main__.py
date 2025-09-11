@@ -6,8 +6,12 @@ Usage: python -m modules.object_classification [options]
 
 import argparse
 import sys
-from .classification_data import validate_arguments
-from modules.common.constants import CONSTANTS
+from .classification_data import (
+    validate_arguments,
+    CLASSIFICATION_BATCH_SIZE,
+    CLASSIFICATION_INPUT_SIZE,
+    CLASSIFICATION_INPUT_DEPTH
+)
 from .run import run_classification
 from .utils import parse_vignette_metadata
 from pathlib import Path
@@ -15,9 +19,9 @@ from .inference_engine import InferenceEngine
 from .processor import ClassificationProcessor
 
 # Destructure constants
-DEFAULT_BATCH_SIZE = CONSTANTS.CLASSIFICATION_BATCH_SIZE
-DEFAULT_INPUT_SIZE = CONSTANTS.CLASSIFICATION_INPUT_SIZE
-DEFAULT_INPUT_DEPTH = CONSTANTS.CLASSIFICATION_INPUT_DEPTH
+DEFAULT_BATCH_SIZE = CLASSIFICATION_BATCH_SIZE
+DEFAULT_INPUT_SIZE = CLASSIFICATION_INPUT_SIZE
+DEFAULT_INPUT_DEPTH = CLASSIFICATION_INPUT_DEPTH
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

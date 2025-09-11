@@ -75,7 +75,7 @@ def flatfield_images(data: FlatfieldingData):
             pixel_overlap = data.overlap_map.get(abs_image_path, 0)
             
             if pixel_overlap > 0:
-                flatfielded_image[:pixel_overlap, :] = 0 # Black out the top rows
+                flatfielded_image[:pixel_overlap, :] = 255 # White out the top rows
 
             # Save the flatfielded image
             save_flatfielded_image(

@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from dateutil import relativedelta
+from dateutil.relativedelta import relativedelta
 from typing import List
 from pathlib import Path
 
@@ -23,8 +23,12 @@ def _load_pressure_sensor_csv(
         engine='python'
     )
 
-    time_col = next((col for col in df.columns if csv_params.time_column_name.lower() in col.lower()), None)
-    depth_col = next((col for col in df.columns if csv_params.depth_column_name.lower() in col.lower()), None)
+    if camera_format == "old":
+        time_col = next((col for col in df.columns if csv_params.time_column_name.lower() in col.lower() and 'p1' in col.lower()), None)
+        depth_col = next((col for col in df.columns if csv_params.depth_column_name.lower() in col.lower()), None)
+    else:
+        time_col = next((col for col in df.columns if csv_params.time_column_name.lower() in col.lower()), None)
+        depth_col = next((col for col in df.columns if csv_params.depth_column_name.lower() in col.lower()), None)
 
     if not time_col:
         raise ValueError(f"Time column containing '{csv_params.time_column_name}' not found.")
@@ -54,7 +58,7 @@ def _calculate_depths(
     capture_rate: float
 ) -> pd.Series:
     """Calculate the depth for each image based on its timestamp."""
-    timestep = relativedelta.relatedelta(microseconds=1_000_000 / capture_rate)
+    timestep = relativedelta(microseconds=1_000_000 / capture_rate)
     timestamps = [recording_start_datetime + (i * timestep) for i in range(len(image_paths))]
     
     # Find the nearest depth measurement for each image timestamp
@@ -66,8 +70,8 @@ def _calculate_pixel_overlap(
     depth_params: DepthParams
 ) -> np.ndarray:
     """Calculate pixel overlaps for depth correction."""
-    # Calculate the depth of the top and bottom of each image in cm
-    image_top_depths_cm = depths * depth_params.overlap_correction_depth_multiplier
+    # Convert depth from meters to centimeters for overlap calculation
+    image_top_depths_cm = depths * 100
     image_bottom_depths_cm = image_top_depths_cm + depth_params.image_height_cm
     
     # Calculate overlaps in cm, ensuring no negative values
