@@ -13,7 +13,6 @@ Example:
   python3 run_pipeline.py \
     -i /home/david-james/Desktop/04-MDPI/MDPI/profiles/Project_Example/20230425/day/E01_01 \
     -o /home/david-james/Desktop/04-MDPI/MDPI/output \
-    -c 2.4 \
     -m /home/david-james/Desktop/04-MDPI/MDPI/model
 """
 
@@ -25,6 +24,7 @@ from types import SimpleNamespace
 
 # Common
 from modules.common.constants import CONSTANTS
+from modules.common.cli_utils import prompt_for_mdpi_configuration
 
 # Duplicate detection
 from modules.duplicate_detection.utils import process_arguments as duplicate_process_arguments
@@ -33,6 +33,8 @@ from modules.duplicate_detection.detector import deduplicate_images
 # Depth profiling
 from modules.depth_profiling.depth_profile_data import (
     process_arguments as depth_process_arguments,
+    CAPTURE_RATE,
+    IMAGE_HEIGHT_CM,
 )
 from modules.depth_profiling.profiler import profile_depths
 
@@ -101,11 +103,20 @@ def run_duplicate_detection(input_dir: str):
     deduplicate_images(image_paths)
 
 
-def run_depth_profiling(input_dir: str, output_root: str, capture_rate: float) -> str:
+def run_depth_profiling(
+    input_dir: str,
+    output_root: str,
+    capture_rate: float,
+    image_height_cm: float
+) -> str:
     """Run depth profiling and return the base output path for this run."""
-    args = SimpleNamespace(input=input_dir, output=output_root, capture_rate=capture_rate)
+    args = SimpleNamespace(input=input_dir, output=output_root)
     # All parameters are now automatically detected and configured
-    validated = depth_process_arguments(args)
+    validated = depth_process_arguments(
+        args,
+        capture_rate_override=capture_rate,
+        image_height_cm_override=image_height_cm
+    )
 
     profile_depths(validated)
 
@@ -231,28 +242,18 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python3 run_pipeline.py -i ./profiles/Project_Example/20230425/day/E01_01 -o ./output -c 2.4 -m ./model
+  python3 run_pipeline.py -i ./profiles/Project_Example/20230425/day/E01_01 -o ./output -m ./model
         """,
     )
 
     # Required/primary args
     parser.add_argument("-i", "-\u002Dinput", dest="input", required=True, help="Input directory with raw MDPI images and pressure sensor CSV")
     parser.add_argument("-o", "-\u002Doutput", dest="output", default="./output", help="Root output directory")
-    parser.add_argument("-c", "-\u002Dcapture-rate", dest="capture_rate", type=float, required=True, help="MDPI image capture rate in Hz")
     parser.add_argument("-m", "-\u002Dmodel", dest="model", required=True, help="Path to trained model directory containing model.ckpt files")
 
-    # Optional: classification knobs
-    parser.add_argument("--classification-batch-size", type=int, default=CLASSIFICATION_BATCH_SIZE)
-    parser.add_argument("--classification-input-size", type=int, default=CLASSIFICATION_INPUT_SIZE)
-    parser.add_argument("--classification-input-depth", type=int, default=CLASSIFICATION_INPUT_DEPTH)
-
-    # Optional: concentration knobs (defaults mirror calculate_concentrations module)
-    parser.add_argument("--bin-size", type=float, default=DEFAULT_BIN_SIZE)
-    parser.add_argument("--max-depth", type=float, default=DEFAULT_MAX_DEPTH)
-    parser.add_argument("--img-depth", type=float, default=DEFAULT_IMG_DEPTH)
-    parser.add_argument("--img-width", type=float, default=DEFAULT_IMG_WIDTH)
-
     args = parser.parse_args()
+
+    capture_rate, image_height_cm = prompt_for_mdpi_configuration(CAPTURE_RATE, IMAGE_HEIGHT_CM)
 
     try:
         # Resolve absolute paths
@@ -266,7 +267,12 @@ Examples:
 
         # 2) Depth profiling
         print("[PIPELINE]: Running depth profiling...")
-        base_output_dir = run_depth_profiling(input_dir, output_root, args.capture_rate)
+        base_output_dir = run_depth_profiling(
+            input_dir,
+            output_root,
+            capture_rate=capture_rate,
+            image_height_cm=image_height_cm
+        )
         depth_csv = os.path.join(base_output_dir, f"depth_profiles{CONSTANTS.CSV_EXTENSION}")
 
         # 3) Flatfielding
@@ -283,9 +289,9 @@ Examples:
             vignettes_dir=vignettes_dir,
             output_root=output_root,
             model_dir=model_dir,
-            batch_size=args.classification_batch_size,
-            input_size=args.classification_input_size,
-            input_depth=args.classification_input_depth,
+            batch_size=CLASSIFICATION_BATCH_SIZE,
+            input_size=CLASSIFICATION_INPUT_SIZE,
+            input_depth=CLASSIFICATION_INPUT_DEPTH,
         )
 
         # 6) Concentration calculation
@@ -293,10 +299,10 @@ Examples:
         object_data_csv = os.path.join(classification_output_dir, OBJECT_DATA_CSV_FILENAME)
         concentration_csv_path = run_concentration_step(
             object_data_csv=object_data_csv,
-            max_depth=args.max_depth,
-            bin_size=args.bin_size,
-            img_depth=args.img_depth,
-            img_width=args.img_width,
+            max_depth=DEFAULT_MAX_DEPTH,
+            bin_size=DEFAULT_BIN_SIZE,
+            img_depth=DEFAULT_IMG_DEPTH,
+            img_width=DEFAULT_IMG_WIDTH,
         )
 
         # 7) Plotting

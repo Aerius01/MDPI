@@ -17,6 +17,7 @@ from modules.common.fs_utils import ensure_dir
 # meaning that images are vertical. 4.3 cm is the height of the field of view.
 # This is important for the calculation of the pixel overlap.
 IMAGE_HEIGHT_CM: float = 4.3
+CAPTURE_RATE: float = 2.4  # MDPI capture rate in hertz (Hz), instrumental in mapping images to depths
 
 # Old camera format defaults
 OLD_FORMAT_HEADER_ROW: int = 4   # Row index of the header (0-based)
@@ -100,7 +101,7 @@ def detect_camera_format(df: pd.DataFrame) -> str:
         f"First column name is '{first_column_name}', but expected 'Name' or 'Number'."
     )
 
-def create_camera_parameters(is_new_format: bool, image_height_pixels: int) -> Tuple[CsvParams, DepthParams]:
+def create_camera_parameters(is_new_format: bool, image_height_pixels: int, image_height_cm: float) -> Tuple[CsvParams, DepthParams]:
     """Create appropriate CSV and depth parameters based on detected camera format."""
     csv_params = CsvParams(
         separator=PRESSURE_SENSOR_CSV_SEPARATOR,
@@ -113,19 +114,23 @@ def create_camera_parameters(is_new_format: bool, image_height_pixels: int) -> T
 
     depth_params = DepthParams(
         pressure_sensor_depth_multiplier=NEW_FORMAT_PRESSURE_MULTIPLIER if is_new_format else OLD_FORMAT_PRESSURE_MULTIPLIER,
-        image_height_cm=IMAGE_HEIGHT_CM,
+        image_height_cm=image_height_cm,
         image_height_pixels=image_height_pixels
     )
     
     return csv_params, depth_params
 
-def process_arguments(args: argparse.Namespace) -> DepthProfilingData:
+def process_arguments(
+    args: argparse.Namespace,
+    capture_rate_override: float = None,
+    image_height_cm_override: float = None
+) -> DepthProfilingData:
     """
     Processes command line arguments and prepares data for depth profiling.
     Automatically detects camera format and configures all parameters accordingly.
     """
-    if args.capture_rate <= 0:
-        raise ValueError("Capture rate must be a positive number.")
+    current_capture_rate = capture_rate_override if capture_rate_override is not None else CAPTURE_RATE
+    current_image_height_cm = image_height_cm_override if image_height_cm_override is not None else IMAGE_HEIGHT_CM
 
     input_path = Path(args.input)
     metadata_dict = parse_metadata(input_path)
@@ -154,7 +159,11 @@ def process_arguments(args: argparse.Namespace) -> DepthProfilingData:
     camera_format = detect_camera_format(header_df)
     print(f"[PROFILING]: Detected {camera_format} camera format.")
     
-    final_csv_params, final_depth_params = create_camera_parameters(camera_format == "new", image_height_pixels)
+    final_csv_params, final_depth_params = create_camera_parameters(
+        camera_format == "new", 
+        image_height_pixels,
+        current_image_height_cm
+    )
 
     output_dir = ensure_dir(args.output)
     date_str = run_metadata.recording_start_date.strftime("%Y%m%d")
@@ -171,7 +180,7 @@ def process_arguments(args: argparse.Namespace) -> DepthProfilingData:
         run_metadata=run_metadata,
         pressure_sensor_csv_path=pressure_sensor_csv_path,
         output_path=output_path,
-        capture_rate=args.capture_rate,
+        capture_rate=current_capture_rate,
         csv_params=final_csv_params,
         depth_params=final_depth_params,
         camera_format=camera_format
