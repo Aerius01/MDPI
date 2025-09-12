@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import argparse
 from dataclasses import dataclass
-from typing import List, Sequence
+from typing import Sequence
 
 @dataclass
 class ConcentrationConfig:
@@ -57,8 +57,8 @@ def depth_bin_offset(bin_sequence):
 def calculate_concentration(counts: np.ndarray, bin_size: float, img_depth: float, img_width: float) -> np.ndarray:
     """
     Python equivalent of CalculateConcentration.R
-    Calculates concentration [ind/m^3] from counts.
-    The volume is calculated in cubic meters (bin_size * img_depth * img_width).
+    Calculates concentration [ind/L] from counts.
+    The volume is calculated in liters (bin_size * img_depth * img_width == dm^3).
     """
     volume_m3 = bin_size * img_depth * img_width
     concentrations = np.round(counts / volume_m3, decimals=1)
