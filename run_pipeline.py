@@ -88,13 +88,13 @@ from modules.plotter.plot_profile import PlotConfig, plot_single_profile
 import pandas as pd
 
 # Global configuration defaults (not in CONSTANTS)
-DEFAULT_BIN_SIZE = 0.1
-DEFAULT_MAX_DEPTH = 18.0
-DEFAULT_IMG_DEPTH = 10.0
-DEFAULT_IMG_WIDTH = 0.42
+# Volume in L == dm^3
+DEFAULT_BIN_SIZE = 1.00 # in decimeters
+DEFAULT_MAX_DEPTH = 22.0 # in meters
+DEFAULT_IMG_DEPTH = 1.00 # in decimeters
+DEFAULT_IMG_WIDTH = 0.42 # in decimeters
 CONCENTRATION_OUTPUT_FILENAME = "concentration_data.csv"
 OBJECT_DATA_CSV_FILENAME = "object_data.csv"
-
 
 def run_duplicate_detection(input_dir: str):
     """Run duplicate detection on raw images."""

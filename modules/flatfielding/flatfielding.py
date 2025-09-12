@@ -63,7 +63,7 @@ def flatfield_images(data: FlatfieldingData):
 
     success_count = 0
     recording_start_time_str = data.metadata['recording_start_time'].strftime("%H%M%S%f")[:-3]
-    for i in tqdm(range(0, len(image_data), data.batch_size), desc="Flatfielding batches"):
+    for i in tqdm(range(0, len(image_data), data.batch_size), desc="[FLATFIELDING]"):
         batch_data = image_data[i:i + data.batch_size]
 
         for image_path, image_array in batch_data:
