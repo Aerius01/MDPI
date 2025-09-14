@@ -236,6 +236,65 @@ def run_plotting_step(concentration_csv_path: str):
     print(f"[PLOTTER]: Plots for {concentration_csv_path} saved in {output_path}.")
 
 
+def execute_pipeline(input_dir, output_root, model_dir, capture_rate, image_height_cm, img_depth, img_width):
+    """
+    Executes the full MDPI pipeline.
+    This function contains the core logic and is called by both the CLI and the Streamlit app.
+    """
+    # Resolve absolute paths
+    input_dir = str(Path(input_dir).resolve())
+    output_root = str(Path(output_root).resolve())
+    model_dir = str(Path(model_dir).resolve())
+
+    # 1) Duplicate detection (pre-processing)
+    print("[PIPELINE]: Running duplicate detection...")
+    run_duplicate_detection(input_dir)
+
+    # 2) Depth profiling
+    print("[PIPELINE]: Running depth profiling...")
+    base_output_dir = run_depth_profiling(
+        input_dir,
+        output_root,
+        capture_rate=capture_rate,
+        image_height_cm=image_height_cm
+    )
+    depth_csv = os.path.join(base_output_dir, f"depth_profiles{CONSTANTS.CSV_EXTENSION}")
+
+    # 3) Flatfielding
+    print("[PIPELINE]: Running flatfielding...")
+    flatfield_dir = run_flatfielding(input_dir, depth_csv, output_root)
+
+    # 4) Object detection
+    print("[PIPELINE]: Running object detection...")
+    vignettes_dir = run_detection_step(flatfield_dir, depth_csv, output_root)
+
+    # 5) Classification
+    print("[PIPELINE]: Running object classification...")
+    classification_output_dir = run_classification_step(
+        vignettes_dir=vignettes_dir,
+        output_root=output_root,
+        model_dir=model_dir,
+        batch_size=CLASSIFICATION_BATCH_SIZE,
+        input_size=CLASSIFICATION_INPUT_SIZE,
+        input_depth=CLASSIFICATION_INPUT_DEPTH,
+    )
+
+    # 6) Concentration calculation
+    print("[PIPELINE]: Calculating concentrations...")
+    object_data_csv = os.path.join(classification_output_dir, OBJECT_DATA_CSV_FILENAME)
+    concentration_csv_path = run_concentration_step(
+        object_data_csv=object_data_csv,
+        max_depth=DEFAULT_MAX_DEPTH,
+        bin_size=DEFAULT_BIN_SIZE,
+        img_depth=img_depth,
+        img_width=img_width,
+    )
+
+    # 7) Plotting
+    print("[PIPELINE]: Generating plots...")
+    run_plotting_step(concentration_csv_path)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run the full MDPI pipeline end-to-end.",
@@ -258,59 +317,15 @@ Examples:
     )
 
     try:
-        # Resolve absolute paths
-        input_dir = str(Path(args.input).resolve())
-        output_root = str(Path(args.output).resolve())
-        model_dir = str(Path(args.model).resolve())
-
-        # 1) Duplicate detection (pre-processing)
-        print("[PIPELINE]: Running duplicate detection...")
-        run_duplicate_detection(input_dir)
-
-        # 2) Depth profiling
-        print("[PIPELINE]: Running depth profiling...")
-        base_output_dir = run_depth_profiling(
-            input_dir,
-            output_root,
+        execute_pipeline(
+            input_dir=args.input,
+            output_root=args.output,
+            model_dir=args.model,
             capture_rate=capture_rate,
-            image_height_cm=image_height_cm
-        )
-        depth_csv = os.path.join(base_output_dir, f"depth_profiles{CONSTANTS.CSV_EXTENSION}")
-
-        # 3) Flatfielding
-        print("[PIPELINE]: Running flatfielding...")
-        flatfield_dir = run_flatfielding(input_dir, depth_csv, output_root)
-
-        # 4) Object detection
-        print("[PIPELINE]: Running object detection...")
-        vignettes_dir = run_detection_step(flatfield_dir, depth_csv, output_root)
-
-        # 5) Classification
-        print("[PIPELINE]: Running object classification...")
-        classification_output_dir = run_classification_step(
-            vignettes_dir=vignettes_dir,
-            output_root=output_root,
-            model_dir=model_dir,
-            batch_size=CLASSIFICATION_BATCH_SIZE,
-            input_size=CLASSIFICATION_INPUT_SIZE,
-            input_depth=CLASSIFICATION_INPUT_DEPTH,
-        )
-
-        # 6) Concentration calculation
-        print("[PIPELINE]: Calculating concentrations...")
-        object_data_csv = os.path.join(classification_output_dir, OBJECT_DATA_CSV_FILENAME)
-        concentration_csv_path = run_concentration_step(
-            object_data_csv=object_data_csv,
-            max_depth=DEFAULT_MAX_DEPTH,
-            bin_size=DEFAULT_BIN_SIZE,
+            image_height_cm=image_height_cm,
             img_depth=img_depth,
-            img_width=img_width,
+            img_width=img_width
         )
-
-        # 7) Plotting
-        print("[PIPELINE]: Generating plots...")
-        run_plotting_step(concentration_csv_path)
-
         print("[PIPELINE]: All steps completed successfully!")
     except Exception as e:
         print(f"[PIPELINE]: Error: {e}", file=sys.stderr)
