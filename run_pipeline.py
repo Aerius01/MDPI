@@ -91,8 +91,8 @@ import pandas as pd
 # Volume in L == dm^3
 DEFAULT_BIN_SIZE = 1.00 # in decimeters
 DEFAULT_MAX_DEPTH = 22.0 # in meters
-DEFAULT_IMG_DEPTH = 1.00 # in decimeters
-DEFAULT_IMG_WIDTH = 0.42 # in decimeters
+DEFAULT_IMG_DEPTH = 10.00 # in centimeters
+DEFAULT_IMG_WIDTH = 4.2 # in centimeters
 CONCENTRATION_OUTPUT_FILENAME = "concentration_data.csv"
 OBJECT_DATA_CSV_FILENAME = "object_data.csv"
 
@@ -253,7 +253,9 @@ Examples:
 
     args = parser.parse_args()
 
-    capture_rate, image_height_cm = prompt_for_mdpi_configuration(CAPTURE_RATE, IMAGE_HEIGHT_CM)
+    capture_rate, image_height_cm, img_depth, img_width = prompt_for_mdpi_configuration(
+        CAPTURE_RATE, IMAGE_HEIGHT_CM, DEFAULT_IMG_DEPTH, DEFAULT_IMG_WIDTH
+    )
 
     try:
         # Resolve absolute paths
@@ -301,8 +303,8 @@ Examples:
             object_data_csv=object_data_csv,
             max_depth=DEFAULT_MAX_DEPTH,
             bin_size=DEFAULT_BIN_SIZE,
-            img_depth=DEFAULT_IMG_DEPTH,
-            img_width=DEFAULT_IMG_WIDTH,
+            img_depth=img_depth,
+            img_width=img_width,
         )
 
         # 7) Plotting
