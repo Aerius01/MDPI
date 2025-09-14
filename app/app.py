@@ -8,6 +8,8 @@ import multiprocessing
 import queue
 import time
 import glob
+import html
+import streamlit.components.v1 as components
 
 
 st.set_page_config(layout="wide")
@@ -296,6 +298,7 @@ with b_col2:
 
 
 # --- Log Display ---
+st.subheader("Pipeline Output")
 log_placeholder = st.empty()
 
 if st.session_state.log_queue:
@@ -322,7 +325,20 @@ if st.session_state.log_queue:
             # No more messages for now
             break
 
-log_placeholder.code('\n'.join(st.session_state.logs))
+log_string = "\n".join(st.session_state.logs)
+escaped_logs = html.escape(log_string)
+log_html = f"""
+<div id="log-container" style="height: 400px; overflow-y: auto; border: 1px solid #333; border-radius: 5px; padding: 10px; background-color: #000;">
+    <pre><code style="color: #fff;">{escaped_logs}</code></pre>
+</div>
+<script>
+    var container = document.getElementById('log-container');
+    container.scrollTop = container.scrollHeight;
+</script>
+"""
+with log_placeholder.container():
+    components.html(log_html, height=420)
+
 
 if is_running:
     time.sleep(0.1)
