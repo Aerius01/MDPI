@@ -89,10 +89,10 @@ import pandas as pd
 
 # Global configuration defaults (not in CONSTANTS)
 # Volume in L == dm^3
-DEFAULT_BIN_SIZE = 1.00 # in decimeters
+DEFAULT_BIN_SIZE = 0.10 # in meters
 DEFAULT_MAX_DEPTH = 22.0 # in meters
-DEFAULT_IMG_DEPTH = 10.00 # in centimeters
-DEFAULT_IMG_WIDTH = 4.2 # in centimeters
+DEFAULT_IMG_DEPTH = 1.00 # in decimeters
+DEFAULT_IMG_WIDTH = 0.42 # in decimeters
 CONCENTRATION_OUTPUT_FILENAME = "concentration_data.csv"
 OBJECT_DATA_CSV_FILENAME = "object_data.csv"
 

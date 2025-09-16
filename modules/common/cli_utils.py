@@ -19,8 +19,8 @@ def prompt_for_mdpi_configuration(
     print(f"Default values:")
     print(f"  1) CAPTURE_RATE: {capture_rate} Hz")
     print(f"  2) IMAGE_HEIGHT_CM: {image_height_cm} cm")
-    print(f"  3) IMAGE_DEPTH: {img_depth_cm} cm")
-    print(f"  4) IMAGE_WIDTH: {img_width_cm} cm")
+    print(f"  3) IMAGE_DEPTH: {img_depth_cm * 10} cm")
+    print(f"  4) IMAGE_WIDTH: {img_width_cm * 10} cm")
 
     while True:
         choice = input("Accept these values? (Y/N): ").strip().upper()

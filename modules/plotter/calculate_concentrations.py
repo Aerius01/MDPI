@@ -60,8 +60,9 @@ def calculate_concentration(counts: np.ndarray, bin_size: float, img_depth: floa
     Calculates concentration [ind/L] from counts.
     The volume is calculated in liters (bin_size * img_depth * img_width == dm^3).
     """
-    volume_m3 = bin_size * img_depth * img_width
-    concentrations = np.round(counts / volume_m3, decimals=1)
+    bin_size_dm = bin_size * 10 # convert to decimeters
+    volume_L = bin_size_dm * img_depth * img_width
+    concentrations = np.round(counts / volume_L, decimals=1)
     return concentrations
 
 def get_concentration_data(
@@ -91,7 +92,7 @@ def get_concentration_data(
             count = len(data_subset[data_subset['depth_bin'] == bin_depth])
             counts[i] = count
         
-        # Calculate concentrations [ind/m^3]
+        # Calculate concentrations [ind/L]
         concentrations = calculate_concentration(counts, bin_size, img_depth, img_width)
         
         # Extract common metadata once
@@ -145,11 +146,11 @@ def calculate_concentration_data(data: pd.DataFrame, config: ConcentrationConfig
 
 if __name__ == "__main__":
     # --- Configuration ---
-    BIN_SIZE = 0.1
-    MAX_DEPTH = 18.0
+    BIN_SIZE = 0.1 # in meters
+    MAX_DEPTH = 22.0 # in meters
     FILE_NAME = "concentration_data.csv"
-    IMG_DEPTH = 10.0
-    IMG_WIDTH = 0.42
+    IMG_DEPTH = 1.0 # in decimeters
+    IMG_WIDTH = 0.42 # in decimeters
     REQUIRED_COLUMNS = [
         'project',
         'recording_start_date',
