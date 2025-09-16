@@ -69,7 +69,8 @@ def main():
         else:
             results.append((False, "No supported image files found (.tif, .jpg, .png)."))
 
-        csv_files = glob.glob(os.path.join(path, '*.csv'))
+        # Match CSV files case-insensitively (e.g., .csv, .CSV, .CsV)
+        csv_files = glob.glob(os.path.join(path, '*.[Cc][Ss][Vv]'))
         if len(csv_files) == 1:
             results.append((True, "Found one pressure sensor CSV file."))
         else:
@@ -177,10 +178,10 @@ def main():
     c_col1, c_col2 = st.columns(2)
     with c_col1:
         capture_rate = st.number_input("Capture Rate (Hz)", value=CAPTURE_RATE)
-        image_depth_cm = st.number_input("Image Depth (cm)", value=DEFAULT_IMG_DEPTH)
+        image_depth_cm = st.number_input("Image Depth (cm)", value=DEFAULT_IMG_DEPTH * 10)
     with c_col2:
         image_height_cm = st.number_input("Image Height (cm)", value=IMAGE_HEIGHT_CM)
-        image_width_cm = st.number_input("Image Width (cm)", value=DEFAULT_IMG_WIDTH)
+        image_width_cm = st.number_input("Image Width (cm)", value=DEFAULT_IMG_WIDTH * 10)
 
 
     # --- Folder Pickers ---

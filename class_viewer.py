@@ -346,7 +346,9 @@ class ClassViewer:
         if event == "file.export":
             filter = Gtk.FileFilter()
             filter.set_name("CSV")
+            # Allow both lowercase and uppercase CSV extensions
             filter.add_pattern("*.csv")
+            filter.add_pattern("*.CSV")
             dialog.add_filter(filter)
 
         filter = Gtk.FileFilter()

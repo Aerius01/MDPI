@@ -26,10 +26,6 @@ from types import SimpleNamespace
 from modules.common.constants import CONSTANTS
 from modules.common.cli_utils import prompt_for_mdpi_configuration
 
-# Duplicate detection
-from modules.duplicate_detection.utils import process_arguments as duplicate_process_arguments
-from modules.duplicate_detection.detector import deduplicate_images
-
 # Depth profiling
 from modules.depth_profiling.depth_profile_data import (
     process_arguments as depth_process_arguments,
@@ -96,11 +92,10 @@ DEFAULT_IMG_WIDTH = 0.42 # in decimeters
 CONCENTRATION_OUTPUT_FILENAME = "concentration_data.csv"
 OBJECT_DATA_CSV_FILENAME = "object_data.csv"
 
+# Duplicate detection is intentionally disabled to preserve depth matching in later steps.
 def run_duplicate_detection(input_dir: str):
-    """Run duplicate detection on raw images."""
-    args = SimpleNamespace(input=input_dir)
-    image_paths = duplicate_process_arguments(args)
-    deduplicate_images(image_paths)
+    """No-op: duplicate detection disabled."""
+    return
 
 
 def run_depth_profiling(
@@ -246,9 +241,7 @@ def execute_pipeline(input_dir, output_root, model_dir, capture_rate, image_heig
     output_root = str(Path(output_root).resolve())
     model_dir = str(Path(model_dir).resolve())
 
-    # 1) Duplicate detection (pre-processing)
-    print("[PIPELINE]: Running duplicate detection...")
-    run_duplicate_detection(input_dir)
+    # 1) Duplicate detection intentionally skipped
 
     # 2) Depth profiling
     print("[PIPELINE]: Running depth profiling...")
