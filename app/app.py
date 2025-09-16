@@ -118,8 +118,8 @@ def main():
                 st.markdown(f"<p style='color:orange; margin-bottom:0.1rem; font-size:0.9rem;'>⚠️ Could not parse path: {e}</p>", unsafe_allow_html=True)
 
 
-    def pipeline_worker(log_queue: multiprocessing.Queue, input_dir, output_root, model_dir, capture_rate, image_height_cm, img_depth, img_width):
-        """The target function for the pipeline process. No st calls here."""
+    def pipeline_worker(log_queue: multiprocessing.Queue, input_dirs, output_root, model_dir, capture_rate, image_height_cm, img_depth, img_width):
+        """The target function for the pipeline process. Processes one or more input directories sequentially. No st calls here."""
         # Redirect stdout and stderr to the queue
         logger = QueueLogger(log_queue)
         original_stdout = sys.stdout
@@ -128,15 +128,23 @@ def main():
         sys.stderr = logger
 
         try:
-            execute_pipeline(
-                input_dir,
-                output_root,
-                model_dir,
-                capture_rate,
-                image_height_cm,
-                img_depth,
-                img_width
-            )
+            # Normalize to list
+            if isinstance(input_dirs, str):
+                input_dirs = [input_dirs]
+
+            total = len(input_dirs)
+            for idx, input_dir in enumerate(input_dirs, start=1):
+                print(f"[PIPELINE]: Starting {idx}/{total} → {input_dir}")
+                execute_pipeline(
+                    input_dir,
+                    output_root,
+                    model_dir,
+                    capture_rate,
+                    image_height_cm,
+                    img_depth,
+                    img_width
+                )
+                print(f"[PIPELINE]: Finished {idx}/{total} → {input_dir}")
             log_queue.put("---DONE---")
             # Use original stdout for the final success message to avoid race condition
             original_stdout.write("[PIPELINE]: All steps completed successfully!\n")
@@ -167,6 +175,12 @@ def main():
         st.session_state.log_queue = None
     if 'logs' not in st.session_state:
         st.session_state.logs = []
+    if 'raw_input_keys' not in st.session_state:
+        st.session_state.raw_input_keys = ['raw_images_0']
+    if 'raw_input_counter' not in st.session_state:
+        st.session_state.raw_input_counter = 1
+    if 'raw_images_0' not in st.session_state:
+        st.session_state.raw_images_0 = ""
 
 
     # --- Title & Intro ---
@@ -186,29 +200,58 @@ def main():
 
     # --- Folder Pickers ---
     st.subheader("Input Paths")
-    if 'raw_images' not in st.session_state:
-        # Default to empty to prompt user selection
-        st.session_state.raw_images = ""
+    # Dynamic list of input rows: each row has its own state key (e.g., 'raw_images_0')
 
     if 'output_dir' not in st.session_state:
         # Default to the project's output folder
         st.session_state.output_dir = os.path.join(PROJECT_ROOT, "output")
 
-    st.write("Path to Raw Images Folder")
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        st.button("Browse", on_click=select_folder, args=("raw_images",), key="browse_raw", use_container_width=True)
-    with col2:
-        st.text_input("Path to Raw Images Folder", key="raw_images", label_visibility="collapsed")
-    raw_images_validation = validate_raw_images_path(st.session_state.raw_images)
-    display_validation(raw_images_validation)
-    if all(v[0] for v in raw_images_validation):
-        st.write("")  # Add vertical space
-        display_path_parsing(st.session_state.raw_images)
-        st.write("")  # Add vertical space
-    else:
-        # Maintain vertical space if expander is not shown
-        st.write("")
+    st.write("Raw Images Folders")
+
+    def add_input_row():
+        key = f"raw_images_{st.session_state.raw_input_counter}"
+        st.session_state.raw_input_counter += 1
+        st.session_state.raw_input_keys.append(key)
+        st.session_state[key] = ""
+
+    def remove_input_row(row_key: str):
+        if len(st.session_state.raw_input_keys) <= 1:
+            return  # keep at least one row
+        if row_key in st.session_state.raw_input_keys:
+            st.session_state.raw_input_keys.remove(row_key)
+            try:
+                del st.session_state[row_key]
+            except KeyError:
+                pass
+
+    # Render rows and collect validation state
+    input_values = []
+    input_valid_flags = []
+    for idx, row_key in enumerate(list(st.session_state.raw_input_keys)):
+        with st.container(border=True):
+            col1, col2, col3 = st.columns([0.6, 4, 0.6])
+            with col1:
+                st.button("Browse", on_click=select_folder, args=(row_key,), key=f"browse_{row_key}", use_container_width=True)
+            with col2:
+                st.text_input("Path to Raw Images Folder", key=row_key, label_visibility="collapsed")
+            with col3:
+                if idx == 0:
+                    st.button("Add", on_click=add_input_row, key="add_input_row", use_container_width=True)
+                else:
+                    st.button("Remove", on_click=remove_input_row, args=(row_key,), key=f"remove_{row_key}", use_container_width=True)
+
+            current_value = st.session_state.get(row_key, "")
+            v = validate_raw_images_path(current_value)
+            display_validation(v)
+            is_valid_path = all(_v[0] for _v in v)
+            if is_valid_path:
+                st.write("")
+                display_path_parsing(current_value)
+                st.write("")
+            input_values.append(current_value)
+            input_valid_flags.append(is_valid_path)
+
+    all_inputs_valid = (len(input_values) > 0) and all(input_valid_flags)
 
     st.write("Path to Output Folder")
     col1, col2 = st.columns([1, 4])
@@ -216,7 +259,9 @@ def main():
         st.button("Browse", on_click=select_folder, args=("output_dir",), key="browse_output", use_container_width=True)
     with col2:
         st.text_input("Path to Output Folder", key="output_dir", label_visibility="collapsed")
-    display_validation(validate_output_path(st.session_state.output_dir))
+    out_validation_results = validate_output_path(st.session_state.output_dir)
+    display_validation(out_validation_results)
+    out_valid = all(v[0] for v in out_validation_results)
 
     st.write("")  # Add vertical space
 
@@ -224,30 +269,42 @@ def main():
 
     # --- Run/Stop Buttons ---
     def start_pipeline():
-        raw_images = st.session_state.raw_images
         output_dir = st.session_state.output_dir
         model_dir = os.path.join(PROJECT_ROOT, "model")
 
-        raw_valid = all(v[0] for v in validate_raw_images_path(raw_images))
+        # Build list of inputs from dynamic rows
+        input_dirs = [
+            st.session_state.get(k, "").strip()
+            for k in st.session_state.raw_input_keys
+            if st.session_state.get(k, "").strip()
+        ]
+
+        # Validate all inputs
+        inputs_valid = (
+            len(input_dirs) > 0 and all(all(v[0] for v in validate_raw_images_path(p)) for p in input_dirs)
+        )
         out_valid = all(v[0] for v in validate_output_path(output_dir))
 
-        if not (raw_valid and out_valid):
-            st.error("Please fix the validation errors before running the pipeline.")
+        if not inputs_valid:
+            st.error("Please add at least one valid input folder. Fix validation errors above.")
             return
-        else:
-            log_queue = multiprocessing.Queue()
-            # Convert cm to dm before passing to worker
-            image_depth_dm = image_depth_cm / 10.0
-            image_width_dm = image_width_cm / 10.0
-            process = multiprocessing.Process(
-                target=pipeline_worker,
-                args=(log_queue, raw_images, output_dir, model_dir, capture_rate, image_height_cm, image_depth_dm, image_width_dm)
-            )
-            process.daemon = True
-            st.session_state.pipeline_process = process
-            st.session_state.log_queue = log_queue
-            st.session_state.logs = ["Starting pipeline..."]
-            process.start()
+        if not out_valid:
+            st.error("Please fix the output folder validation errors before running the pipeline.")
+            return
+
+        log_queue = multiprocessing.Queue()
+        # Convert cm to dm before passing to worker
+        image_depth_dm = image_depth_cm / 10.0
+        image_width_dm = image_width_cm / 10.0
+        process = multiprocessing.Process(
+            target=pipeline_worker,
+            args=(log_queue, input_dirs, output_dir, model_dir, capture_rate, image_height_cm, image_depth_dm, image_width_dm)
+        )
+        process.daemon = True
+        st.session_state.pipeline_process = process
+        st.session_state.log_queue = log_queue
+        st.session_state.logs = ["Starting pipeline..."]
+        process.start()
 
     def stop_pipeline():
         process = st.session_state.pipeline_process
@@ -265,10 +322,11 @@ def main():
 
 
     is_running = st.session_state.pipeline_process is not None and st.session_state.pipeline_process.is_alive()
+    validation_blocking = not (all_inputs_valid and out_valid)
 
     b_col1, b_col2, _ = st.columns([1, 1, 5])
     with b_col1:
-        st.button("Run", on_click=start_pipeline, disabled=is_running, use_container_width=True)
+        st.button("Run", on_click=start_pipeline, disabled=is_running or validation_blocking, use_container_width=True)
     with b_col2:
         st.button("Stop", on_click=stop_pipeline, disabled=not is_running, use_container_width=True)
 

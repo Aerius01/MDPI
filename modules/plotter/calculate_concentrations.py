@@ -78,7 +78,7 @@ def get_concentration_data(
     """
     results_list = []
     
-    groups = [group for group in data['label'].unique() if group != 'junk']
+    groups = [group for group in data['label'].unique()]
     
     # Calculate concentrations per group
     for group in groups:

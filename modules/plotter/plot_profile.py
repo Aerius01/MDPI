@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import os
 import argparse
 from dataclasses import dataclass
-from modules.plotter.plot_utils import setup_plot_aesthetics, configure_axes, save_plot
+from modules.plotter.plot_utils import setup_plot_aesthetics, configure_axes, save_plot, _calculate_nice_step
 from modules.plotter.constants import PLOTTING_CONSTANTS
 
 @dataclass
@@ -37,7 +37,7 @@ def plot_single_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
 
         # set plot title and filename
         plot_title = f'{project}_{group}_{date}_{cycle}'
-        file_name = f"{plot_title}.{config.file_format}"
+        file_name = f"{plot_title}_concentration.{config.file_format}"
 
         # create plot
         fig, ax = plt.subplots(figsize=config.figsize)
@@ -52,13 +52,18 @@ def plot_single_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
         # set axis labels and title
         setup_plot_aesthetics(ax, plot_title)
 
-        # set axis ticks
-        max_concentration = conc_data['concentration'].max() if not conc_data.empty else 0
+        # set axis ticks (standardize to 5 ticks: 0, 25%, 50%, 75%, 100%)
+        raw_max_concentration = conc_data['concentration'].max() if not conc_data.empty else 0
+        step = _calculate_nice_step(raw_max_concentration, 4)
+        if step <= 0:
+            step = 1
+        x_max = step * 4
         max_depth = conc_data['depth'].max() if not conc_data.empty else 0
-        configure_axes(ax, max_depth, max_concentration, is_symmetric=False, depth_tick_step=1, conc_tick_step=100)
+        configure_axes(ax, max_depth, x_max, is_symmetric=False, depth_tick_step=1, conc_tick_step=step)
 
-        # save plot
-        save_plot(fig, output_path, file_name)
+        # save plot into standardized subfolder
+        sub_output_path = os.path.join(output_path, 'plots')
+        save_plot(fig, sub_output_path, file_name)
 
 if __name__ == '__main__':
     # --- Configuration ---
@@ -99,8 +104,8 @@ if __name__ == '__main__':
         exit(1)
 
     # --- Plotting ---
-    output_path = os.path.dirname(args.csv_path)
-    plot_single_profile(input_csv, output_path, config)
-    
-    print(f"[PLOTTER]: Plots for {args.csv_path} saved in {output_path}.") 
+    base_output_path = os.path.dirname(args.csv_path)
+    plot_single_profile(input_csv, base_output_path, config)
+    final_output_path = os.path.join(base_output_path, 'plots')
+    print(f"[PLOTTER]: Plots for {args.csv_path} saved in {final_output_path}.") 
 

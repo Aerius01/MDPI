@@ -81,6 +81,7 @@ from modules.plotter.calculate_concentrations import (
 )
 from modules.plotter.constants import PLOTTING_CONSTANTS
 from modules.plotter.plot_profile import PlotConfig, plot_single_profile
+from modules.plotter.plot_length_profile import plot_length_profile
 import pandas as pd
 
 # Global configuration defaults (not in CONSTANTS)
@@ -88,7 +89,7 @@ import pandas as pd
 DEFAULT_BIN_SIZE = 0.10 # in meters
 DEFAULT_MAX_DEPTH = 22.0 # in meters
 DEFAULT_IMG_DEPTH = 1.00 # in decimeters
-DEFAULT_IMG_WIDTH = 0.42 # in decimeters
+DEFAULT_IMG_WIDTH = IMAGE_HEIGHT_CM / 10.0 # in decimeters, equal to IMAGE_HEIGHT_CM
 CONCENTRATION_OUTPUT_FILENAME = "concentration_data.csv"
 OBJECT_DATA_CSV_FILENAME = "object_data.csv"
 
@@ -226,9 +227,33 @@ def run_plotting_step(concentration_csv_path: str):
     )
 
     input_csv = pd.read_csv(concentration_csv_path, sep=';', engine='python')
-    output_path = os.path.dirname(concentration_csv_path)
-    plot_single_profile(input_csv, output_path, config)
-    print(f"[PLOTTER]: Plots for {concentration_csv_path} saved in {output_path}.")
+    base_output_path = os.path.dirname(concentration_csv_path)
+    plot_single_profile(input_csv, base_output_path, config)
+    final_output_path = os.path.join(base_output_path, 'plots')
+    print(f"[PLOTTER]: Plots for {concentration_csv_path} saved in {final_output_path}.")
+
+
+def run_length_plotting_step(object_data_csv_path: str):
+    """Run length-vs-depth plotting from object_data CSV."""
+    config = PlotConfig(
+        figsize=PLOTTING_CONSTANTS.FIGSIZE,
+        day_color=PLOTTING_CONSTANTS.DAY_COLOR,
+        night_color=PLOTTING_CONSTANTS.NIGHT_COLOR,
+        edge_color=PLOTTING_CONSTANTS.EDGE_COLOR,
+        align=PLOTTING_CONSTANTS.ALIGN,
+        file_format=PLOTTING_CONSTANTS.FILE_FORMAT
+    )
+
+    try:
+        input_df = pd.read_csv(object_data_csv_path, sep=';', engine='python')
+    except FileNotFoundError:
+        print(f"[PLOTTER]: object_data.csv not found at {object_data_csv_path}; skipping length plots.")
+        return
+
+    base_output_path = os.path.dirname(object_data_csv_path)
+    plot_length_profile(input_df, base_output_path, config)
+    final_output_path = os.path.join(base_output_path, 'plots')
+    print(f"[PLOTTER]: Length plots for {object_data_csv_path} saved in {final_output_path}.")
 
 
 def execute_pipeline(input_dir, output_root, model_dir, capture_rate, image_height_cm, img_depth, img_width):
@@ -286,6 +311,10 @@ def execute_pipeline(input_dir, output_root, model_dir, capture_rate, image_heig
     # 7) Plotting
     print("[PIPELINE]: Generating plots...")
     run_plotting_step(concentration_csv_path)
+
+    # 8) Length vs Depth plotting from object data
+    print("[PIPELINE]: Generating length vs depth plots...")
+    run_length_plotting_step(object_data_csv)
 
 
 def main():

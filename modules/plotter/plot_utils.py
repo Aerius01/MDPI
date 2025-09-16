@@ -52,14 +52,42 @@ def configure_axes(ax, max_depth, max_concentration, is_symmetric=False, depth_t
     if approx_ticks > max_conc_ticks:
         conc_tick_step = _calculate_nice_step(range_span, max_conc_ticks)
 
+    # Determine decimal precision for tick labels based on step
+    if conc_tick_step >= 1:
+        decimals = 0
+    elif conc_tick_step >= 0.1:
+        decimals = 1
+    elif conc_tick_step >= 0.01:
+        decimals = 2
+    else:
+        decimals = 3
+
+    def _fmt(val: float) -> str:
+        s = f"{val:.{decimals}f}"
+        # Trim trailing zeros and dot for cleaner labels
+        if '.' in s:
+            s = s.rstrip('0').rstrip('.')
+        return s
+
     if is_symmetric:
         x_limit = (-current_max_conc, current_max_conc)
         x_ticks = np.arange(-current_max_conc, current_max_conc + conc_tick_step, conc_tick_step)
-        x_labels = [abs(int(x)) for x in x_ticks]
+        x_labels = [_fmt(abs(x)) for x in x_ticks]
     else:
         x_limit = (0, current_max_conc)
         x_ticks = np.arange(0, current_max_conc + conc_tick_step, conc_tick_step)
-        x_labels = [int(x) for x in x_ticks]
+        x_labels = [_fmt(x) for x in x_ticks]
+
+    # Final safety: limit the number of ticks to avoid label overlap
+    max_allowed = max_conc_ticks + 1  # include 0 and max
+    if len(x_ticks) > max_allowed and max_allowed > 1:
+        step_idx = int(np.ceil(len(x_ticks) / max_allowed))
+        idxs = np.arange(0, len(x_ticks), step_idx)
+        # Ensure last tick is included
+        if idxs[-1] != len(x_ticks) - 1:
+            idxs = np.append(idxs, len(x_ticks) - 1)
+        x_ticks = x_ticks[idxs]
+        x_labels = [x_labels[i] for i in idxs]
 
     ax.set_xlim(x_limit)
     ax.set_xticks(x_ticks)
