@@ -2,14 +2,25 @@ import streamlit as st
 import os
 import sys
 from pathlib import Path
-import tkinter as tk
-from tkinter import filedialog
 import multiprocessing
 import queue
 import time
 import glob
 import html
 import streamlit.components.v1 as components
+
+# Tkinter is only available when a display server is present.
+# In headless environments (e.g., WSL without GUI), importing or using it will fail.
+try:
+    import tkinter as tk  # type: ignore
+    from tkinter import filedialog  # type: ignore
+    _TK_AVAILABLE = True
+except Exception:
+    _TK_AVAILABLE = False
+
+# Consider environment headless if DISPLAY is not set (common on WSL servers)
+_HEADLESS_ENV = not bool(os.environ.get("DISPLAY"))
+_GUI_BROWSE_AVAILABLE = _TK_AVAILABLE and not _HEADLESS_ENV
 
 
 def main():
@@ -159,7 +170,13 @@ def main():
 
 
     def select_folder(key: str):
-        """Open folder dialog and update session_state."""
+        """Open folder dialog and update session_state. Disabled on headless."""
+        if not _GUI_BROWSE_AVAILABLE:
+            st.session_state["browse_error"] = (
+                "GUI folder picker is unavailable in headless environments. "
+                "Please paste the folder path manually."
+            )
+            return
         root = tk.Tk()
         root.withdraw()
         root.attributes('-topmost', True)
@@ -181,6 +198,8 @@ def main():
         st.session_state.raw_input_counter = 1
     if 'raw_images_0' not in st.session_state:
         st.session_state.raw_images_0 = ""
+    if 'browse_error' not in st.session_state:
+        st.session_state.browse_error = None
 
 
     # --- Title & Intro ---
@@ -207,6 +226,8 @@ def main():
         st.session_state.output_dir = os.path.join(PROJECT_ROOT, "output")
 
     st.write("Raw Images Folders")
+    if not _GUI_BROWSE_AVAILABLE:
+        st.info("GUI folder picker disabled (headless). Paste folder paths manually.")
 
     def add_input_row():
         key = f"raw_images_{st.session_state.raw_input_counter}"
@@ -231,7 +252,14 @@ def main():
         with st.container(border=True):
             col1, col2, col3 = st.columns([0.6, 4, 0.6])
             with col1:
-                st.button("Browse", on_click=select_folder, args=(row_key,), key=f"browse_{row_key}", use_container_width=True)
+                st.button(
+                    "Browse",
+                    on_click=select_folder,
+                    args=(row_key,),
+                    key=f"browse_{row_key}",
+                    use_container_width=True,
+                    disabled=not _GUI_BROWSE_AVAILABLE,
+                )
             with col2:
                 st.text_input("Path to Raw Images Folder", key=row_key, label_visibility="collapsed")
             with col3:
@@ -256,9 +284,19 @@ def main():
     st.write("Path to Output Folder")
     col1, col2 = st.columns([1, 4])
     with col1:
-        st.button("Browse", on_click=select_folder, args=("output_dir",), key="browse_output", use_container_width=True)
+        st.button(
+            "Browse",
+            on_click=select_folder,
+            args=("output_dir",),
+            key="browse_output",
+            use_container_width=True,
+            disabled=not _GUI_BROWSE_AVAILABLE,
+        )
     with col2:
         st.text_input("Path to Output Folder", key="output_dir", label_visibility="collapsed")
+    if st.session_state.browse_error:
+        st.warning(st.session_state.browse_error)
+        st.session_state.browse_error = None
     out_validation_results = validate_output_path(st.session_state.output_dir)
     display_validation(out_validation_results)
     out_valid = all(v[0] for v in out_validation_results)
