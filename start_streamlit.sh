@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Resolve project root to the directory of this script
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+# Define project root; default to $HOME/MDPI so script can live in $HOME
+PROJECT_ROOT="${PROJECT_ROOT:-$HOME/MDPI}"
+if [ ! -d "$PROJECT_ROOT" ]; then
+  echo "Project root not found at $PROJECT_ROOT. Set PROJECT_ROOT to override." >&2
+  exit 1
+fi
+cd "$PROJECT_ROOT"
 
 # Locate conda executable (no activation required)
 CONDA_BIN="${CONDA_BIN:-}"
@@ -69,7 +73,7 @@ if ! "$CONDA_BIN" run "${RUN_TARGET_ARGS[@]}" python -c "import streamlit" >/dev
   exit 1
 fi
 
-echo "Launching Streamlit app from $SCRIPT_DIR/app/app.py on port $PORT..."
+echo "Launching Streamlit app from $PROJECT_ROOT/app/app.py on port $PORT..."
 echo "Using conda: $CONDA_BIN"
 if [ -n "$ENV_PREFIX" ]; then
   echo "Env prefix: $ENV_PREFIX"
