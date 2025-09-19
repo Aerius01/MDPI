@@ -58,7 +58,7 @@ from modules.object_detection.detection_data import (
     MEDIUM_OBJECT_THRESHOLD,
     OUTPUT_CSV_SEPARATOR
 )
-from modules.object_detection.__main__ import run_detection
+from modules.object_detection.run import run_detection
 from modules.object_detection.detector import Detector
 from modules.object_detection.output_handler import OutputHandler
 
@@ -323,13 +323,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python3 run_pipeline.py -i ./profiles/Project_Example/20230425/day/E01_01 -o ./output -m ./model
+  python3 run_pipeline.py -i ./profiles/Project_Example/20230425/day/E01_01 -m ./model
         """,
     )
 
     # Required/primary args
     parser.add_argument("-i", "-\u002Dinput", dest="input", required=True, help="Input directory with raw MDPI images and pressure sensor CSV")
-    parser.add_argument("-o", "-\u002Doutput", dest="output", default="./output", help="Root output directory")
     parser.add_argument("-m", "-\u002Dmodel", dest="model", required=True, help="Path to trained model directory containing model.ckpt files")
 
     args = parser.parse_args()
@@ -339,9 +338,12 @@ Examples:
     )
 
     try:
+        # Hardcode output to a './output' subfolder inside the input directory
+        computed_output_root = os.path.join(args.input, 'output')
+
         execute_pipeline(
             input_dir=args.input,
-            output_root=args.output,
+            output_root=computed_output_root,
             model_dir=args.model,
             capture_rate=capture_rate,
             image_height_cm=image_height_cm,

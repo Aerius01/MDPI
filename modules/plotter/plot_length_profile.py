@@ -80,48 +80,18 @@ def plot_length_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
         sub_output_path = os.path.join(output_path, 'plots')
         save_plot(fig, sub_output_path, file_name)
 
+FIGSIZE = PLOTTING_CONSTANTS.FIGSIZE
+DAY_COLOR = PLOTTING_CONSTANTS.DAY_COLOR
+NIGHT_COLOR = PLOTTING_CONSTANTS.NIGHT_COLOR
+EDGE_COLOR = PLOTTING_CONSTANTS.EDGE_COLOR
+ALIGN = PLOTTING_CONSTANTS.ALIGN
+FILE_FORMAT = PLOTTING_CONSTANTS.FILE_FORMAT
 
-
-if __name__ == '__main__':
-    # --- Configuration ---
-    FIGSIZE = PLOTTING_CONSTANTS.FIGSIZE
-    DAY_COLOR = PLOTTING_CONSTANTS.DAY_COLOR
-    NIGHT_COLOR = PLOTTING_CONSTANTS.NIGHT_COLOR
-    EDGE_COLOR = PLOTTING_CONSTANTS.EDGE_COLOR
-    ALIGN = PLOTTING_CONSTANTS.ALIGN
-    FILE_FORMAT = PLOTTING_CONSTANTS.FILE_FORMAT
-
-    config = PlotConfig(
-        figsize=FIGSIZE,
-        day_color=DAY_COLOR,
-        night_color=NIGHT_COLOR,
-        edge_color=EDGE_COLOR,
-        align=ALIGN,
-        file_format=FILE_FORMAT
-    )
-
-    # --- Argument Parsing ---
-    import argparse
-    parser = argparse.ArgumentParser(description='Generate length (mm) vs depth (m) plots from object data CSV.')
-    parser.add_argument('-i', '--csv_path', type=str, help='Path to the input object_data CSV file.', required=True)
-    args = parser.parse_args()
-
-    # --- Data Loading ---
-    try:
-        input_csv = pd.read_csv(args.csv_path, sep=';', engine='python')
-    except FileNotFoundError:
-        print(f"Error: Input file not found at {args.csv_path}")
-        exit(1)
-
-    # --- Validation ---
-    required_columns = ['project', 'recording_start_date', 'cycle', 'label', 'depth', 'MajorAxisLength']
-    missing_columns = [col for col in required_columns if col not in input_csv.columns]
-    if missing_columns:
-        print(f"Error: Input CSV file '{args.csv_path}' is missing required columns: {', '.join(missing_columns)}")
-        exit(1)
-
-    # --- Plotting ---
-    base_output_path = os.path.dirname(args.csv_path)
-    plot_length_profile(input_csv, base_output_path, config)
-    final_output_path = os.path.join(base_output_path, 'plots')
-    print(f"[PLOTTER]: Length plots for {args.csv_path} saved in {final_output_path}.")
+config = PlotConfig(
+    figsize=FIGSIZE,
+    day_color=DAY_COLOR,
+    night_color=NIGHT_COLOR,
+    edge_color=EDGE_COLOR,
+    align=ALIGN,
+    file_format=FILE_FORMAT
+)

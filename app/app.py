@@ -88,25 +88,6 @@ def main():
             results.append((False, f"Expected 1 CSV file, but found {len(csv_files)}."))
         return results
 
-    def validate_output_path(path):
-        """Check if the output path is valid."""
-        results = []
-        if not path or not path.strip():
-            return [(False, "Output path cannot be empty.")]
-
-        parent_dir = os.path.dirname(path) or '.'
-        if not os.path.isdir(parent_dir):
-            return [(False, f"Parent directory does not exist: {parent_dir}")]
-
-        if os.access(parent_dir, os.W_OK):
-            results.append((True, "Output directory is writable."))
-        else:
-            results.append((False, "Output directory is not writable."))
-
-        if os.path.exists(path) and not os.path.isdir(path):
-            results.append((False, "Path exists but is a file, not a directory."))
-        return results
-
     def display_validation(validation_results):
         """Render validation results with icons."""
         for is_valid, message in validation_results:
@@ -129,7 +110,7 @@ def main():
                 st.markdown(f"<p style='color:orange; margin-bottom:0.1rem; font-size:0.9rem;'>⚠️ Could not parse path: {e}</p>", unsafe_allow_html=True)
 
 
-    def pipeline_worker(log_queue: multiprocessing.Queue, input_dirs, output_root, model_dir, capture_rate, image_height_cm, img_depth, img_width):
+    def pipeline_worker(log_queue: multiprocessing.Queue, input_dirs, model_dir, capture_rate, image_height_cm, img_depth, img_width):
         """The target function for the pipeline process. Processes one or more input directories sequentially. No st calls here."""
         # Redirect stdout and stderr to the queue
         logger = QueueLogger(log_queue)
@@ -146,9 +127,10 @@ def main():
             total = len(input_dirs)
             for idx, input_dir in enumerate(input_dirs, start=1):
                 print(f"[PIPELINE]: Starting {idx}/{total} → {input_dir}")
+                computed_output_root = os.path.join(input_dir, 'output')
                 execute_pipeline(
                     input_dir,
-                    output_root,
+                    computed_output_root,
                     model_dir,
                     capture_rate,
                     image_height_cm,
@@ -221,9 +203,6 @@ def main():
     st.subheader("Input Paths")
     # Dynamic list of input rows: each row has its own state key (e.g., 'raw_images_0')
 
-    if 'output_dir' not in st.session_state:
-        # Default to the project's output folder
-        st.session_state.output_dir = os.path.join(PROJECT_ROOT, "output")
 
     st.write("Raw Images Folders")
     if not _GUI_BROWSE_AVAILABLE:
@@ -281,33 +260,12 @@ def main():
 
     all_inputs_valid = (len(input_values) > 0) and all(input_valid_flags)
 
-    st.write("Path to Output Folder")
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        st.button(
-            "Browse",
-            on_click=select_folder,
-            args=("output_dir",),
-            key="browse_output",
-            use_container_width=True,
-            disabled=not _GUI_BROWSE_AVAILABLE,
-        )
-    with col2:
-        st.text_input("Path to Output Folder", key="output_dir", label_visibility="collapsed")
-    if st.session_state.browse_error:
-        st.warning(st.session_state.browse_error)
-        st.session_state.browse_error = None
-    out_validation_results = validate_output_path(st.session_state.output_dir)
-    display_validation(out_validation_results)
-    out_valid = all(v[0] for v in out_validation_results)
-
     st.write("")  # Add vertical space
 
     st.divider()
 
     # --- Run/Stop Buttons ---
     def start_pipeline():
-        output_dir = st.session_state.output_dir
         model_dir = os.path.join(PROJECT_ROOT, "model")
 
         # Build list of inputs from dynamic rows
@@ -321,13 +279,8 @@ def main():
         inputs_valid = (
             len(input_dirs) > 0 and all(all(v[0] for v in validate_raw_images_path(p)) for p in input_dirs)
         )
-        out_valid = all(v[0] for v in validate_output_path(output_dir))
-
         if not inputs_valid:
             st.error("Please add at least one valid input folder. Fix validation errors above.")
-            return
-        if not out_valid:
-            st.error("Please fix the output folder validation errors before running the pipeline.")
             return
 
         log_queue = multiprocessing.Queue()
@@ -336,7 +289,7 @@ def main():
         image_width_dm = image_width_cm / 10.0
         process = multiprocessing.Process(
             target=pipeline_worker,
-            args=(log_queue, input_dirs, output_dir, model_dir, capture_rate, image_height_cm, image_depth_dm, image_width_dm)
+            args=(log_queue, input_dirs, model_dir, capture_rate, image_height_cm, image_depth_dm, image_width_dm)
         )
         process.daemon = True
         st.session_state.pipeline_process = process
@@ -360,7 +313,7 @@ def main():
 
 
     is_running = st.session_state.pipeline_process is not None and st.session_state.pipeline_process.is_alive()
-    validation_blocking = not (all_inputs_valid and out_valid)
+    validation_blocking = not all_inputs_valid
 
     b_col1, b_col2, _ = st.columns([1, 1, 5])
     with b_col1:

@@ -5,10 +5,9 @@ Replicates the exact functionality for calculating concentration data from depth
 """
 
 import os
-import sys
 import pandas as pd
 import numpy as np
-import argparse
+import sys
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -144,70 +143,11 @@ def calculate_concentration_data(data: pd.DataFrame, config: ConcentrationConfig
     
     return concentration_data
 
-if __name__ == "__main__":
-    # --- Configuration ---
-    BIN_SIZE = 0.1 # in meters
-    MAX_DEPTH = 22.0 # in meters
-    FILE_NAME = "concentration_data.csv"
-    IMG_DEPTH = 1.0 # in decimeters
-    IMG_WIDTH = 0.42 # in decimeters
-    REQUIRED_COLUMNS = [
-        'project',
-        'recording_start_date',
-        'cycle',
-        'replicate',
-        'depth',
-        'label'
-    ]
-
-    config = ConcentrationConfig(
-        max_depth=MAX_DEPTH,
-        bin_size=BIN_SIZE,
-        output_file_name=FILE_NAME,
-        img_depth=IMG_DEPTH,
-        img_width=IMG_WIDTH
-    )
-
-    # --- Argument Parsing ---
-    parser = argparse.ArgumentParser(description="Calculate concentration data from a single CSV file.")
-    parser.add_argument("-i", "--input", required=True, help="Path to the input CSV file.")
-    args = parser.parse_args()
-    
-    # --- Data Loading and Validation ---
-    try:
-        data = pd.read_csv(args.input, dtype={
-            'project': str,
-            'cycle': str,
-            'replicate': str,
-            'prediction': str,
-            'label': str,
-            'FileName': str,
-            'depth': float
-        }, engine='python')
-    except FileNotFoundError:
-        print(f"Error: Input file not found: {args.input}", file=sys.stderr)
-        sys.exit(1)
-    except ValueError:
-        print(f"Error: The 'depth' column in '{args.input}' contains non-numeric values that could not be converted.", file=sys.stderr)
-        sys.exit(1)
-    except Exception as e:
-        print(f"Error reading CSV file: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    missing_columns = [col for col in REQUIRED_COLUMNS if col not in data.columns]
-    if missing_columns:
-        print(f"Error: Input CSV file '{args.input}' is missing required columns: {', '.join(missing_columns)}", file=sys.stderr)
-        sys.exit(1)
-
-    for col in REQUIRED_COLUMNS:
-        if data[col].isnull().any():
-            print(f"Error: Input CSV file '{args.input}' contains missing values in required column: '{col}'", file=sys.stderr)
-            sys.exit(1)
-
-    # --- Calculation ---
-    concentration_data = calculate_concentration_data(data, config)
-    
-    # --- Data Saving ---
-    output_path = os.path.join(os.path.dirname(args.input), config.output_file_name)
-    concentration_data.to_csv(output_path, index=False, sep=';')
-    print(f"[PLOTTER]: Concentration data saved to: {output_path}") 
+REQUIRED_COLUMNS = [
+    'project',
+    'recording_start_date',
+    'cycle',
+    'replicate',
+    'depth',
+    'label'
+]
