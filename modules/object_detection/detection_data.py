@@ -1,8 +1,7 @@
-import argparse
 from pathlib import Path
 import pandas as pd
 from modules.common.fs_utils import ensure_dir
-from modules.common.parser import _list_image_filenames, _build_image_paths
+from modules.common.parser import _list_image_filenames
 import os
 from dataclasses import dataclass, fields
 from types import SimpleNamespace
@@ -60,7 +59,7 @@ def validate_arguments(run_config: SimpleNamespace, flatfield_dir: str, depth_pr
     
     # Get flatfield-specific file paths
     filenames = _list_image_filenames(input_path)
-    flatfield_img_paths = _build_image_paths(input_path, filenames)
+    flatfield_img_paths = [str(input_path / filename) for filename in filenames]
     run_config.metadata['flatfield_img_paths'] = flatfield_img_paths
 
     output_dir = ensure_dir(run_config.output_root)

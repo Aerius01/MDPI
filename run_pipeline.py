@@ -26,18 +26,17 @@ from types import SimpleNamespace
 from modules.common.constants import CONSTANTS
 from modules.common.cli_utils import prompt_for_mdpi_configuration
 from modules.common.parser import parse_file_metadata
+from modules.common.fs_utils import find_single_csv_file
 
 # Depth profiling
 from modules.depth_profiling.depth_profile_data import (
-    process_arguments as depth_process_arguments,
     CAPTURE_RATE,
     IMAGE_HEIGHT_CM,
     read_csv_with_encodings,
     detect_camera_format,
     PRESSURE_SENSOR_CSV_SEPARATOR,
 )
-from modules.depth_profiling.profiler import profile_depths
-from modules.depth_profiling.utils import find_single_csv_file
+from modules.depth_profiling.run import run_depth_profiling
 
 # Flatfielding
 from modules.flatfielding.flatfielding_data import (
@@ -100,7 +99,8 @@ DEFAULT_IMG_WIDTH = IMAGE_HEIGHT_CM / 10.0 # in decimeters, equal to IMAGE_HEIGH
 CONCENTRATION_OUTPUT_FILENAME = "concentration_data.csv"
 OBJECT_DATA_CSV_FILENAME = "object_data.csv"
 
-def validate_inputs_and_setup(input_dir, model_dir):
+
+def validate_inputs_and_setup(input_dir, model_dir, capture_rate, image_height_cm, img_depth, img_width):
     """
     Validates all pipeline inputs and sets up necessary configurations.
     """
@@ -139,36 +139,19 @@ def validate_inputs_and_setup(input_dir, model_dir):
     # Validate model directory
     _validate_model(str(model_dir_path))
 
+    # Create and return run_config with resolved paths and new data
     return SimpleNamespace(
         input_dir=str(input_dir_path),
-        output_root=str(output_root_path),
         model_dir=str(model_dir_path),
+        output_root=str(output_root_path),
+        capture_rate=capture_rate,
+        image_height_cm=image_height_cm,
+        img_depth=img_depth,
+        img_width=img_width,
         metadata=metadata,
         pressure_sensor_csv_path=pressure_sensor_csv_path,
-        camera_format=camera_format
+        camera_format=camera_format,
     )
-
-# Duplicate detection is intentionally disabled to preserve depth matching in later steps.
-def run_duplicate_detection(input_dir: str):
-    """No-op: duplicate detection disabled."""
-    return
-
-
-def run_depth_profiling(
-    run_config: SimpleNamespace,
-    capture_rate: float,
-    image_height_cm: float,
-) -> pd.DataFrame:
-    """Run depth profiling and return the depth dataframe."""
-    validated = depth_process_arguments(
-        run_config,
-        capture_rate_override=capture_rate,
-        image_height_cm_override=image_height_cm,
-    )
-
-    depth_df = profile_depths(validated)
-    return depth_df
-
 
 def run_flatfielding(run_config: SimpleNamespace, depth_df: pd.DataFrame) -> str:
     """Run flatfielding and return the flatfielded images directory path."""
@@ -239,48 +222,34 @@ def run_classification_step(
     return final_df
 
 
-def run_concentration_step(
-    object_data_df: pd.DataFrame,
-    output_dir: str,
-    max_depth: float,
-    bin_size: float,
-    img_depth: float,
-    img_width: float,
-) -> pd.DataFrame:
+def run_concentration_step(run_config: SimpleNamespace, object_data_df: pd.DataFrame) -> pd.DataFrame:
     """Run concentration calculation and return the concentration dataframe."""
     config = ConcentrationConfig(
-        max_depth=max_depth,
-        bin_size=bin_size,
+        max_depth=DEFAULT_MAX_DEPTH,
+        bin_size=DEFAULT_BIN_SIZE,
         output_file_name=CONCENTRATION_OUTPUT_FILENAME,
-        img_depth=img_depth,
-        img_width=img_width,
+        img_depth=run_config.img_depth,
+        img_width=run_config.img_width,
     )
     concentration_df = calculate_concentration_data(object_data_df, config)
-    output_path = os.path.join(output_dir, config.output_file_name)
+    output_path = os.path.join(run_config.output_root, config.output_file_name)
     concentration_df.to_csv(output_path, index=False, sep=';')
     print(f"[PLOTTER]: Concentration data saved to: {output_path}")
     return concentration_df
 
 
-def run_sizeclass_concentration_step(
-    object_data_df: pd.DataFrame,
-    output_dir: str,
-    max_depth: float,
-    bin_size: float,
-    img_depth: float,
-    img_width: float,
-) -> pd.DataFrame:
+def run_sizeclass_concentration_step(run_config: SimpleNamespace, object_data_df: pd.DataFrame) -> pd.DataFrame:
     """Run size-class concentration calculation and return the concentration dataframe."""
     if object_data_df.empty:
         print(f"[PLOTTER]: object_data_df is empty; skipping size-class concentration.")
         return pd.DataFrame()
 
     config = ConcentrationConfig(
-        max_depth=max_depth,
-        bin_size=bin_size,
+        max_depth=DEFAULT_MAX_DEPTH,
+        bin_size=DEFAULT_BIN_SIZE,
         output_file_name="sizeclass_concentration_data.csv",
-        img_depth=img_depth,
-        img_width=img_width,
+        img_depth=run_config.img_depth,
+        img_width=run_config.img_width,
     )
 
     sizeclass_df = calculate_sizeclass_concentration_data(object_data_df, config)
@@ -288,7 +257,7 @@ def run_sizeclass_concentration_step(
         print("[PLOTTER]: No size-class concentration data was produced; skipping save.")
         return pd.DataFrame()
 
-    output_path = os.path.join(output_dir, config.output_file_name)
+    output_path = os.path.join(run_config.output_root, config.output_file_name)
     sizeclass_df.to_csv(output_path, index=False, sep=';')
     print(f"[PLOTTER]: Size-class concentration data saved to: {output_path}")
     return sizeclass_df
@@ -349,39 +318,30 @@ def run_size_plotting_step(sizeclass_concentration_df: pd.DataFrame, output_dir:
     print(f"[PLOTTER]: Size-class plots for {output_dir} saved in {final_output_path}.")
 
 
-def execute_pipeline(input_dir, model_dir, capture_rate, image_height_cm, img_depth, img_width):
+def execute_pipeline(run_config: SimpleNamespace):
     """
     Executes the full MDPI pipeline.
     This function contains the core logic and is called by both the CLI and the Streamlit app.
     """
-    # Perform all initial validation and setup
-    run_config = validate_inputs_and_setup(input_dir, model_dir)
-
-    # 1) Duplicate detection intentionally skipped
-
-    # 2) Depth profiling
+    # 1) Depth profiling
     print("[PIPELINE]: Running depth profiling...")
-    depth_df = run_depth_profiling(
-        run_config,
-        capture_rate=capture_rate,
-        image_height_cm=image_height_cm,
-    )
+    depth_df = run_depth_profiling(run_config)
     if depth_df.empty:
         print(f"[PIPELINE]: Depth profiling produced no data. Cannot proceed.")
         return
 
-    # 3) Flatfielding
+    # 2) Flatfielding
     print("[PIPELINE]: Running flatfielding...")
     flatfield_dir = run_flatfielding(run_config, depth_df)
 
-    # 4) Object detection
+    # 3) Object detection
     print("[PIPELINE]: Running object detection...")
     vignettes_dir = run_detection_step(run_config, flatfield_dir, depth_df)
     if not os.path.exists(vignettes_dir) or not any(os.scandir(vignettes_dir)):
         print("[PIPELINE]: No vignettes were generated by the object detection step. Skipping classification and plotting.")
         return
 
-    # 5) Classification
+    # 4) Classification
     print("[PIPELINE]: Running object classification...")
     object_data_df = run_classification_step(
         run_config=run_config,
@@ -391,39 +351,31 @@ def execute_pipeline(input_dir, model_dir, capture_rate, image_height_cm, img_de
         input_depth=CLASSIFICATION_INPUT_DEPTH,
     )
 
-    # 6) Concentration calculation
+    # 5) Concentration calculation
     print("[PIPELINE]: Calculating concentrations...")
     if object_data_df.empty:
         print(f"[PIPELINE]: No objects classified. Skipping concentration calculation and plotting.")
         return
         
     concentration_df = run_concentration_step(
+        run_config=run_config,
         object_data_df=object_data_df,
-        output_dir=run_config.output_root,
-        max_depth=DEFAULT_MAX_DEPTH,
-        bin_size=DEFAULT_BIN_SIZE,
-        img_depth=img_depth,
-        img_width=img_width,
     )
     # Size-class concentration calculation
     sizeclass_concentration_df = run_sizeclass_concentration_step(
+        run_config=run_config,
         object_data_df=object_data_df,
-        output_dir=run_config.output_root,
-        max_depth=DEFAULT_MAX_DEPTH,
-        bin_size=DEFAULT_BIN_SIZE,
-        img_depth=img_depth,
-        img_width=img_width,
     )
 
-    # 7) Plotting
+    # 6) Plotting
     print("[PIPELINE]: Generating plots...")
     run_plotting_step(concentration_df, run_config.output_root)
 
-    # 8) Length vs Depth plotting from object data
+    # 7) Length vs Depth plotting from object data
     print("[PIPELINE]: Generating length vs depth plots...")
     run_length_plotting_step(object_data_df, run_config.output_root)
 
-    # 9) Size-class concentration profiles
+    # 8) Size-class concentration profiles
     print("[PIPELINE]: Generating size-class concentration profiles...")
     run_size_plotting_step(sizeclass_concentration_df, run_config.output_root)
 
@@ -450,14 +402,15 @@ Examples:
     )
 
     try:
-        execute_pipeline(
+        run_config = validate_inputs_and_setup(
             input_dir=args.input,
             model_dir=args.model,
             capture_rate=capture_rate,
             image_height_cm=image_height_cm,
             img_depth=img_depth,
-            img_width=img_width
+            img_width=img_width,
         )
+        execute_pipeline(run_config)
         print("[PIPELINE]: All steps completed successfully!")
     except Exception as e:
         print(f"[PIPELINE]: Error: {e}", file=sys.stderr)

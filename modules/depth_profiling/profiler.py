@@ -102,25 +102,25 @@ def profile_depths(data: DepthProfilingData):
     """
     Processes a group of images to calculate depth for each one.
     """
-    if not data.run_metadata.raw_img_paths:
+    if not data.run_config.metadata["raw_img_paths"]:
         print("[PROFILING]: Warning: Empty image group provided.")
         return pd.DataFrame()
 
     try:
-        start_datetime = datetime.combine(data.run_metadata.recording_start_date, data.run_metadata.recording_start_time)
+        start_datetime = datetime.combine(data.run_config.metadata["recording_start_date"], data.run_config.metadata["recording_start_time"])
         
         pressure_sensor_df = _load_pressure_sensor_csv(
-            data.pressure_sensor_csv_path,
+            data.run_config.pressure_sensor_csv_path,
             data.csv_params,
             data.depth_params.pressure_sensor_depth_multiplier,
-            data.camera_format
+            data.run_config.camera_format
         )
         
         depth_values = _calculate_depths(
             pressure_sensor_df, 
-            data.run_metadata.raw_img_paths, 
+            data.run_config.metadata["raw_img_paths"], 
             start_datetime, 
-            data.capture_rate
+            data.run_config.capture_rate
         )
         
         overlaps = _calculate_pixel_overlap(
@@ -129,15 +129,12 @@ def profile_depths(data: DepthProfilingData):
         )
         
         mapped_df = _create_depth_dataframe(
-            data.run_metadata.raw_img_paths, 
+            data.run_config.metadata["raw_img_paths"], 
             depth_values, 
             overlaps
         )
         
-        # Add metadata to the dataframe
-        mapped_df['recording_start_date'] = data.run_metadata.recording_start_date
-
-        output_csv_path = os.path.join(data.output_path, "depth_profiles" + data.csv_params.extension)
+        output_csv_path = os.path.join(data.run_config.output_root, "depth_profiles" + data.csv_params.extension)
         mapped_df.to_csv(output_csv_path, index=False, sep=';')
         print(f"[PROFILING]: Successfully saved data to {output_csv_path}")
         print(f"[PROFILING]: Processing completed successfully!")

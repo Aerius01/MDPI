@@ -1,17 +1,10 @@
 from dataclasses import dataclass
-import argparse
-from pathlib import Path
-import os
-from typing import Tuple, List
-import datetime
+from typing import Tuple
 import pandas as pd
 import cv2
 from types import SimpleNamespace
 
 from modules.common.constants import CONSTANTS
-from modules.common.parser import parse_file_metadata
-from .utils import find_single_csv_file
-from modules.common.fs_utils import ensure_dir
 
 # ─── M D P I · P A R A M E T E R S ──────────────────────────────────────────────────
 # The MDPI is placed horizontally as it moves through the water column,
@@ -55,23 +48,11 @@ class DepthParams:
     image_height_pixels: int
 
 @dataclass(frozen=True)
-class RunMetadata:
-    """Metadata for a specific run."""
-    raw_img_paths: List[str]
-    recording_start_date: datetime.date
-    recording_start_time: datetime.time
-    total_replicates: int
-
-@dataclass(frozen=True)
 class DepthProfilingData:
     """Dataclass for depth profiling data."""
-    run_metadata: RunMetadata
-    pressure_sensor_csv_path: str
-    output_path: str
-    capture_rate: float
+    run_config: SimpleNamespace
     csv_params: CsvParams
     depth_params: DepthParams
-    camera_format: str
 
 def read_csv_with_encodings(csv_path: str, **kwargs) -> pd.DataFrame:
     """Reads a CSV file by trying multiple common encodings."""
@@ -118,25 +99,16 @@ def create_camera_parameters(is_new_format: bool, image_height_pixels: int, imag
     
     return csv_params, depth_params
 
-def process_arguments(
-    run_config: SimpleNamespace,
-    capture_rate_override: float = None,
-    image_height_cm_override: float = None
-) -> DepthProfilingData:
+def process_arguments(run_config: SimpleNamespace) -> DepthProfilingData:
     """
     Processes command line arguments and prepares data for depth profiling.
     Automatically detects camera format and configures all parameters accordingly.
     """
-    current_capture_rate = capture_rate_override if capture_rate_override is not None else CAPTURE_RATE
-    current_image_height_cm = image_height_cm_override if image_height_cm_override is not None else IMAGE_HEIGHT_CM
-
-    run_metadata = RunMetadata(**run_config.metadata)
-    
     # Read the first image to determine the image height in pixels
-    if not run_metadata.raw_img_paths:
+    if not run_config.metadata["raw_img_paths"]:
         raise FileNotFoundError("No image files found in the input directory.")
         
-    first_image_path = run_metadata.raw_img_paths[0]
+    first_image_path = run_config.metadata["raw_img_paths"][0]
     image = cv2.imread(first_image_path)
     if image is None:
         raise ValueError(f"Could not read image file: {first_image_path}")
@@ -144,16 +116,12 @@ def process_arguments(
 
     final_csv_params, final_depth_params = create_camera_parameters(
         is_new_format=run_config.camera_format == "new",
-        image_height_cm=current_image_height_cm,
+        image_height_cm=run_config.image_height_cm,
         image_height_pixels=image_height_pixels
     )
 
     return DepthProfilingData(
-        output_path=run_config.output_root,
-        pressure_sensor_csv_path=run_config.pressure_sensor_csv_path,
-        camera_format=run_config.camera_format,
-        capture_rate=current_capture_rate,
-        run_metadata=run_metadata,
+        run_config=run_config,
         csv_params=final_csv_params,
         depth_params=final_depth_params
     )

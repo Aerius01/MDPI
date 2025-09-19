@@ -18,12 +18,6 @@ def _list_image_filenames(directory_path: Path) -> list[str]:
     filenames.sort()
     return filenames
 
-
-def _build_image_paths(directory_path: Path, filenames: list[str]) -> list[str]:
-    """Build full paths for the given filenames within the directory path."""
-    return [str(directory_path / filename) for filename in filenames]
-
-
 def _parse_hhmmssmmm(time_str: str) -> datetime.time:
     """Parse a HHMMSSmmm time string into a datetime.time value."""
     if len(time_str) != 9:
@@ -38,7 +32,7 @@ def parse_file_metadata(directory_path: Path) -> Dict:
     Parses an image filename to get the replicate number, recording time, and date.
     """
     filenames = _list_image_filenames(directory_path)
-    raw_img_paths = _build_image_paths(directory_path, filenames)
+    raw_img_paths = [str(directory_path / filename) for filename in filenames]
     
     # Get the last image file in the list (filenames are sorted)
     image_filename = filenames[-1]
