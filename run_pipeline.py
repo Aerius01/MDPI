@@ -78,10 +78,12 @@ from modules.object_classification.run import run_classification
 from modules.plotter.calculate_concentrations import (
     ConcentrationConfig,
     calculate_concentration_data,
+    calculate_sizeclass_concentration_data,
 )
 from modules.plotter.constants import PLOTTING_CONSTANTS
 from modules.plotter.plot_profile import PlotConfig, plot_single_profile
 from modules.plotter.plot_length_profile import plot_length_profile
+from modules.plotter.plot_size_profiles import plot_size_profiles
 import pandas as pd
 
 # Global configuration defaults (not in CONSTANTS)
@@ -215,6 +217,39 @@ def run_concentration_step(
     return output_path
 
 
+def run_sizeclass_concentration_step(
+    object_data_csv: str,
+    max_depth: float,
+    bin_size: float,
+    img_depth: float,
+    img_width: float,
+) -> str:
+    """Run size-class concentration calculation and return path to saved CSV."""
+    try:
+        data = pd.read_csv(object_data_csv, sep=';', engine='python')
+    except FileNotFoundError:
+        print(f"[PLOTTER]: object_data.csv not found at {object_data_csv}; skipping size-class concentration.")
+        return ""
+
+    config = ConcentrationConfig(
+        max_depth=max_depth,
+        bin_size=bin_size,
+        output_file_name="sizeclass_concentration_data.csv",
+        img_depth=img_depth,
+        img_width=img_width,
+    )
+
+    sizeclass_df = calculate_sizeclass_concentration_data(data, config)
+    if sizeclass_df.empty:
+        print("[PLOTTER]: No size-class concentration data was produced; skipping save.")
+        return ""
+
+    output_path = os.path.join(os.path.dirname(object_data_csv), config.output_file_name)
+    sizeclass_df.to_csv(output_path, index=False, sep=';')
+    print(f"[PLOTTER]: Size-class concentration data saved to: {output_path}")
+    return output_path
+
+
 def run_plotting_step(concentration_csv_path: str):
     """Run plotting from a concentration data CSV."""
     config = PlotConfig(
@@ -254,6 +289,29 @@ def run_length_plotting_step(object_data_csv_path: str):
     plot_length_profile(input_df, base_output_path, config)
     final_output_path = os.path.join(base_output_path, 'plots')
     print(f"[PLOTTER]: Length plots for {object_data_csv_path} saved in {final_output_path}.")
+
+
+def run_size_plotting_step(sizeclass_concentration_csv_path: str):
+    """Run size-class profile plotting from sizeclass concentration CSV."""
+    config = PlotConfig(
+        figsize=PLOTTING_CONSTANTS.FIGSIZE,
+        day_color=PLOTTING_CONSTANTS.DAY_COLOR,
+        night_color=PLOTTING_CONSTANTS.NIGHT_COLOR,
+        edge_color=PLOTTING_CONSTANTS.EDGE_COLOR,
+        align=PLOTTING_CONSTANTS.ALIGN,
+        file_format=PLOTTING_CONSTANTS.FILE_FORMAT
+    )
+
+    try:
+        input_df = pd.read_csv(sizeclass_concentration_csv_path, sep=';', engine='python')
+    except FileNotFoundError:
+        print(f"[PLOTTER]: Size-class concentration CSV not found at {sizeclass_concentration_csv_path}; skipping size-class plots.")
+        return
+
+    base_output_path = os.path.dirname(sizeclass_concentration_csv_path)
+    plot_size_profiles(input_df, base_output_path, config)
+    final_output_path = os.path.join(base_output_path, 'plots')
+    print(f"[PLOTTER]: Size-class plots for {sizeclass_concentration_csv_path} saved in {final_output_path}.")
 
 
 def execute_pipeline(input_dir, output_root, model_dir, capture_rate, image_height_cm, img_depth, img_width):
@@ -307,6 +365,14 @@ def execute_pipeline(input_dir, output_root, model_dir, capture_rate, image_heig
         img_depth=img_depth,
         img_width=img_width,
     )
+    # Size-class concentration calculation
+    sizeclass_concentration_csv_path = run_sizeclass_concentration_step(
+        object_data_csv=object_data_csv,
+        max_depth=DEFAULT_MAX_DEPTH,
+        bin_size=DEFAULT_BIN_SIZE,
+        img_depth=img_depth,
+        img_width=img_width,
+    )
 
     # 7) Plotting
     print("[PIPELINE]: Generating plots...")
@@ -315,6 +381,10 @@ def execute_pipeline(input_dir, output_root, model_dir, capture_rate, image_heig
     # 8) Length vs Depth plotting from object data
     print("[PIPELINE]: Generating length vs depth plots...")
     run_length_plotting_step(object_data_csv)
+
+    # 9) Size-class concentration profiles
+    print("[PIPELINE]: Generating size-class concentration profiles...")
+    run_size_plotting_step(sizeclass_concentration_csv_path)
 
 
 def main():
@@ -333,8 +403,9 @@ Examples:
 
     args = parser.parse_args()
 
+    # Pass defaults in centimeters to the prompt; it will convert back to dm
     capture_rate, image_height_cm, img_depth, img_width = prompt_for_mdpi_configuration(
-        CAPTURE_RATE, IMAGE_HEIGHT_CM, DEFAULT_IMG_DEPTH, DEFAULT_IMG_WIDTH
+        CAPTURE_RATE, IMAGE_HEIGHT_CM, DEFAULT_IMG_DEPTH * 10.0, DEFAULT_IMG_WIDTH * 10.0
     )
 
     try:

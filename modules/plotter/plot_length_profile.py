@@ -8,7 +8,8 @@ from modules.plotter.constants import PLOTTING_CONSTANTS
 from modules.plotter.plot_profile import PlotConfig
 
 
-PIXEL_SIZE_UM = 20.9  # micrometers per pixel
+# Use centralized pixel size constant
+PIXEL_SIZE_UM = PLOTTING_CONSTANTS.PIXEL_SIZE_UM  # micrometers per pixel
 LENGTH_X_MAX_MM = 3.0  # crop x-axis at 3 mm for consistency
 
 
@@ -77,21 +78,5 @@ def plot_length_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
         if location is not None:
             file_stem = f"{file_stem}_{location}"
         file_name = f"{file_stem}.{config.file_format}"
-        sub_output_path = os.path.join(output_path, 'plots')
+        sub_output_path = os.path.join(output_path, 'plots', str(group))
         save_plot(fig, sub_output_path, file_name)
-
-FIGSIZE = PLOTTING_CONSTANTS.FIGSIZE
-DAY_COLOR = PLOTTING_CONSTANTS.DAY_COLOR
-NIGHT_COLOR = PLOTTING_CONSTANTS.NIGHT_COLOR
-EDGE_COLOR = PLOTTING_CONSTANTS.EDGE_COLOR
-ALIGN = PLOTTING_CONSTANTS.ALIGN
-FILE_FORMAT = PLOTTING_CONSTANTS.FILE_FORMAT
-
-config = PlotConfig(
-    figsize=FIGSIZE,
-    day_color=DAY_COLOR,
-    night_color=NIGHT_COLOR,
-    edge_color=EDGE_COLOR,
-    align=ALIGN,
-    file_format=FILE_FORMAT
-)

@@ -4,12 +4,14 @@ Python equivalent of MDPI_R/CalculateConcentrationData.R
 Replicates the exact functionality for calculating concentration data from depth-based measurements.
 """
 
-import os
 import pandas as pd
 import numpy as np
-import sys
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Sequence, List
+from modules.plotter.constants import PLOTTING_CONSTANTS
+
+# Pixel size in micrometers; centralized
+PIXEL_SIZE_UM = PLOTTING_CONSTANTS.PIXEL_SIZE_UM
 
 @dataclass
 class ConcentrationConfig:
@@ -143,11 +145,101 @@ def calculate_concentration_data(data: pd.DataFrame, config: ConcentrationConfig
     
     return concentration_data
 
-REQUIRED_COLUMNS = [
-    'project',
-    'recording_start_date',
-    'cycle',
-    'replicate',
-    'depth',
-    'label'
-]
+
+# ------------------ Size class concentration calculation ------------------
+
+def _assign_size_classes(group_df: pd.DataFrame, num_classes: int = 3) -> pd.Series:
+    """
+    Assign quantile-based size classes within a taxonomic label group using EquivDiameter.
+    Returns a categorical series with labels '1'..'num_classes'.
+    """
+    # Prefer EquivDiameter; fallback to MajorAxisLength if needed
+    if 'EquivDiameter' in group_df.columns:
+        size_metric = (group_df['EquivDiameter'] * PIXEL_SIZE_UM) / 1000.0
+    elif 'MajorAxisLength' in group_df.columns:
+        size_metric = (group_df['MajorAxisLength'] * PIXEL_SIZE_UM) / 1000.0
+    else:
+        # No metric available; everything goes to class '1'
+        return pd.Series(['1'] * len(group_df), index=group_df.index, dtype=str)
+
+    # Quantile-based binning akin to Hmisc::cut2(..., g=3)
+    try:
+        classes = pd.qcut(size_metric, q=num_classes, labels=[str(i) for i in range(1, num_classes + 1)])
+        return classes.astype(str)
+    except Exception:
+        # Fallback to equal-width if not enough unique values
+        try:
+            classes = pd.cut(size_metric, bins=num_classes, labels=[str(i) for i in range(1, num_classes + 1)], include_lowest=True)
+            return classes.astype(str)
+        except Exception:
+            return pd.Series(['1'] * len(group_df), index=group_df.index, dtype=str)
+
+
+def calculate_sizeclass_concentration_data(data: pd.DataFrame, config: ConcentrationConfig, groups: List[str] = None) -> pd.DataFrame:
+    """
+    Calculate concentration data aggregated by size classes (1..3) within each taxonomic label.
+    Mirrors MDPI-Ashton/tools/io/GetConcentrationDataSizeClass.R using Python.
+    """
+    # Create sequence of bins - equivalent to seq(bin_size, max_depth, bin_size)
+    depth_bins = np.arange(config.bin_size, config.max_depth + config.bin_size, config.bin_size)
+
+    # Assign measurements to depth bins
+    data = data.copy()
+    data['depth_bin'] = data['depth'].apply(lambda x: depth_bins[depth_bin(x, depth_bins)])
+
+    # Ensure sizeclass exists; if not, derive within each label group using quantiles
+    if 'sizeclass' not in data.columns:
+        data['sizeclass'] = (
+            data.groupby('label', group_keys=False)
+                .apply(lambda g: _assign_size_classes(g))
+        )
+
+    # Determine which size classes to use
+    if groups is None:
+        groups = ['1', '2', '3']
+
+    concentration_rows = []
+
+    # Calculate concentrations per label and size class
+    labels = data['label'].unique().tolist() if 'label' in data.columns else [None]
+    for label_value in labels:
+        label_subset = data if label_value is None else data[data['label'] == label_value]
+        if label_subset.empty:
+            continue
+
+        for size_group in groups:
+            subset = label_subset[label_subset['sizeclass'] == size_group]
+            if subset.empty:
+                continue
+
+            counts = np.zeros(len(depth_bins), dtype=int)
+            for i, bin_depth in enumerate(depth_bins):
+                counts[i] = (subset['depth_bin'] == bin_depth).sum()
+
+            concentrations = calculate_concentration(counts, config.bin_size, config.img_depth, config.img_width)
+
+            meta_project = subset['project'].iloc[0]
+            meta_date = subset['recording_start_date'].iloc[0] if 'recording_start_date' in subset.columns else subset.get('date', pd.Series([None])).iloc[0]
+            meta_cycle = subset['cycle'].iloc[0] if 'cycle' in subset.columns else None
+
+            row_dict = {
+                'project': [meta_project] * len(depth_bins),
+                'recording_start_date': [meta_date] * len(depth_bins),
+                'cycle': [meta_cycle] * len(depth_bins),
+                'depth': np.round(depth_bins, 2),
+                'plot_depth': np.round(depth_bin_offset(depth_bins), 2),
+                'sizeclass': [size_group] * len(depth_bins),
+                'bin_size': [config.bin_size] * len(depth_bins),
+                'concentration': concentrations,
+            }
+            if label_value is not None:
+                row_dict['label'] = [label_value] * len(depth_bins)
+
+            concentration_rows.append(pd.DataFrame(row_dict))
+
+    if not concentration_rows:
+        return pd.DataFrame(columns=['project','recording_start_date','cycle','label','depth','plot_depth','sizeclass','bin_size','concentration'])
+
+    result = pd.concat(concentration_rows, ignore_index=True)
+    result = result.dropna()
+    return result

@@ -13,6 +13,8 @@ class PlottingConstants:
     ALIGN: str = 'edge'
     LEGEND_FONTSIZE: int = 20
     FILE_FORMAT: str = 'png'
+    # Imaging
+    PIXEL_SIZE_UM: float = 20.9  # micrometers per pixel
 
     # Column validation
     SINGLE_PROFILE_REQUIRED_COLUMNS: List[str] = field(default_factory=lambda: [

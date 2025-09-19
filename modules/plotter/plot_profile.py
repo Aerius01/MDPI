@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import os
 from dataclasses import dataclass
 from modules.plotter.plot_utils import setup_plot_aesthetics, configure_axes, save_plot, _calculate_nice_step
-from modules.plotter.constants import PLOTTING_CONSTANTS
 
 @dataclass
 class PlotConfig:
@@ -60,9 +59,6 @@ def plot_single_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
         max_depth = conc_data['depth'].max() if not conc_data.empty else 0
         configure_axes(ax, max_depth, x_max, is_symmetric=False, depth_tick_step=1, conc_tick_step=step)
 
-        # save plot into standardized subfolder
-        sub_output_path = os.path.join(output_path, 'plots')
+        # save plot into standardized subfolder by label
+        sub_output_path = os.path.join(output_path, 'plots', str(group))
         save_plot(fig, sub_output_path, file_name)
-
-REQUIRED_COLUMNS = PLOTTING_CONSTANTS.SINGLE_PROFILE_REQUIRED_COLUMNS
-
