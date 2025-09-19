@@ -20,18 +20,12 @@ class OutputHandler:
         # Join with depth profiles
         combined_df = pd.merge(combined_df, detection_data.depth_profiles_df, on='image_id', how='left')
 
-        # Add metadata
-        combined_df['project'] = detection_data.project
-        combined_df['recording_start_date'] = detection_data.recording_start_date
-        combined_df['cycle'] = detection_data.cycle
-        combined_df['location'] = detection_data.location
-        
         # Sort the dataframe by image_id and then by replicate
         combined_df = combined_df.sort_values(by=['image_id', 'replicate'])
         
         # Reorder columns to have FileName first, then metadata, then other data
-        cols = ['FileName', 'project', 'recording_start_date', 'cycle', 'location', 'image_id', 'replicate', 'depth'] + \
-               [col for col in combined_df.columns if col not in ['FileName', 'project', 'recording_start_date', 'cycle', 'location', 'image_id', 'replicate', 'depth']]
+        cols = ['FileName', 'image_id', 'replicate', 'depth'] + \
+               [col for col in combined_df.columns if col not in ['FileName', 'image_id', 'replicate', 'depth']]
         combined_df = combined_df[cols]
 
         return combined_df

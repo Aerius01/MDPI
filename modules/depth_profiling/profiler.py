@@ -104,7 +104,7 @@ def profile_depths(data: DepthProfilingData):
     """
     if not data.run_metadata.raw_img_paths:
         print("[PROFILING]: Warning: Empty image group provided.")
-        return
+        return pd.DataFrame()
 
     try:
         start_datetime = datetime.combine(data.run_metadata.recording_start_date, data.run_metadata.recording_start_time)
@@ -134,10 +134,14 @@ def profile_depths(data: DepthProfilingData):
             overlaps
         )
         
+        # Add metadata to the dataframe
+        mapped_df['recording_start_date'] = data.run_metadata.recording_start_date
+
         output_csv_path = os.path.join(data.output_path, "depth_profiles" + data.csv_params.extension)
         mapped_df.to_csv(output_csv_path, index=False, sep=';')
         print(f"[PROFILING]: Successfully saved data to {output_csv_path}")
         print(f"[PROFILING]: Processing completed successfully!")
+        return mapped_df
 
     except (ValueError, FileNotFoundError) as e:
         print(f"[PROFILING]: Error processing CSV file: {e}")

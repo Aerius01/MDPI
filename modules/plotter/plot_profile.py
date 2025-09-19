@@ -24,9 +24,7 @@ def plot_single_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
         return
 
     first_row = data.iloc[0]
-    project = first_row['project']
     date = first_row['recording_start_date']
-    cycle = first_row['cycle']
 
     # Group data by label and create a plot for each group
     for group, conc_data in data.groupby('label'):
@@ -34,14 +32,14 @@ def plot_single_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
             continue
 
         # set plot title and filename
-        plot_title = f'{project}_{group}_{date}_{cycle}'
+        plot_title = f'{group}_{date}'
         file_name = f"{plot_title}_concentration.{config.file_format}"
 
         # create plot
         fig, ax = plt.subplots(figsize=config.figsize)
 
         # set bar color based on cycle
-        bar_color = config.day_color if cycle == 'day' else config.night_color
+        bar_color = config.day_color
 
         # create horizontal bar plot
         ax.barh(conc_data['depth'], conc_data['concentration'], height=conc_data['bin_size'], 

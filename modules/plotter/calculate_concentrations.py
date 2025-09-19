@@ -98,9 +98,7 @@ def get_concentration_data(
         
         # Extract common metadata once
         metadata = {
-            'project': data_subset['project'].iloc[0],
             'recording_start_date': data_subset['recording_start_date'].iloc[0],
-            'cycle': data_subset['cycle'].iloc[0],
         }
         
         # Create results DataFrame
@@ -117,7 +115,7 @@ def get_concentration_data(
     
     if not results_list:
         return pd.DataFrame(columns=[
-            'project', 'recording_start_date', 'cycle', 'depth', 
+            'recording_start_date', 'depth', 
             'plot_depth', 'label', 'bin_size', 'concentration'
         ])
 
@@ -218,14 +216,10 @@ def calculate_sizeclass_concentration_data(data: pd.DataFrame, config: Concentra
 
             concentrations = calculate_concentration(counts, config.bin_size, config.img_depth, config.img_width)
 
-            meta_project = subset['project'].iloc[0]
             meta_date = subset['recording_start_date'].iloc[0] if 'recording_start_date' in subset.columns else subset.get('date', pd.Series([None])).iloc[0]
-            meta_cycle = subset['cycle'].iloc[0] if 'cycle' in subset.columns else None
 
             row_dict = {
-                'project': [meta_project] * len(depth_bins),
                 'recording_start_date': [meta_date] * len(depth_bins),
-                'cycle': [meta_cycle] * len(depth_bins),
                 'depth': np.round(depth_bins, 2),
                 'plot_depth': np.round(depth_bin_offset(depth_bins), 2),
                 'sizeclass': [size_group] * len(depth_bins),
@@ -238,7 +232,7 @@ def calculate_sizeclass_concentration_data(data: pd.DataFrame, config: Concentra
             concentration_rows.append(pd.DataFrame(row_dict))
 
     if not concentration_rows:
-        return pd.DataFrame(columns=['project','recording_start_date','cycle','label','depth','plot_depth','sizeclass','bin_size','concentration'])
+        return pd.DataFrame(columns=['recording_start_date','label','depth','plot_depth','sizeclass','bin_size','concentration'])
 
     result = pd.concat(concentration_rows, ignore_index=True)
     result = result.dropna()

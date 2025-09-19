@@ -33,33 +33,10 @@ def _parse_hhmmssmmm(time_str: str) -> datetime.time:
     time_str_for_strptime = time_str[:6] + f"{int(time_str[6:]) * 1000:06d}"
     return datetime.datetime.strptime(time_str_for_strptime, "%H%M%S%f").time()
 
-def _parse_path_metadata(directory_path: Path) -> Dict:
-    """Parses the directory path to extract project, date, cycle, and location."""
-    try:
-        location = directory_path.name
-        cycle = directory_path.parent.name
-        date_str = directory_path.parent.parent.name
-        project = directory_path.parent.parent.parent.name
-    except IndexError:
-        raise ValueError(f"Directory path '{directory_path}' is not in the expected format '.../project/date/cycle/location'")
-
-    if not date_str:
-        raise ValueError(f"Extracted date is empty. Please check the directory path '{directory_path}' format.")
-
-    try:
-        recording_start_date = datetime.datetime.strptime(date_str, "%Y%m%d").date()
-    except ValueError:
-        raise ValueError(f"Date '{date_str}' from path is not in 'YYYYMMDD' format.")
-    
-    return {
-        "project": project,
-        "recording_start_date": recording_start_date,
-        "cycle": cycle,
-        "location": location,
-    }
-
-def _parse_file_metadata(directory_path: Path, recording_start_date: datetime.date) -> Dict:
-    """Parses an image filename to get the replicate number and recording time."""
+def parse_file_metadata(directory_path: Path) -> Dict:
+    """
+    Parses an image filename to get the replicate number, recording time, and date.
+    """
     filenames = _list_image_filenames(directory_path)
     raw_img_paths = _build_image_paths(directory_path, filenames)
     
@@ -76,31 +53,20 @@ def _parse_file_metadata(directory_path: Path, recording_start_date: datetime.da
         # Extract time and date from the last image (which has the highest replicate number)
         time_str = filename_parts[-2]
         date_from_filename_str = filename_parts[-3]
-        date_from_filename = datetime.datetime.strptime(date_from_filename_str, "%Y%m%d").date()
-
-        # Check if the date in the filename matches the date in the path
-        if date_from_filename != recording_start_date:
-            raise ValueError(f"Date in filename '{date_from_filename}' does not match date in path '{recording_start_date}'.")
-
+        recording_start_date = datetime.datetime.strptime(date_from_filename_str, "%Y%m%d").date()
         recording_start_time = _parse_hhmmssmmm(time_str)
 
         # Total replicates is simply the number of image files in the directory
         total_replicates = len(filenames)
 
     except (IndexError, ValueError) as e:
-        if isinstance(e, ValueError) and ("does not match" in str(e) or "incorrect length" in str(e) or "enough parts" in str(e)):
+        if isinstance(e, ValueError) and ("incorrect length" in str(e) or "enough parts" in str(e)):
             raise
         raise ValueError(f"Could not parse info from filename '{image_filename}'. Expected '..._YYYYMMDD_HHMMSSmmm_replicate.ext' format. Error: {e}")
     
     return {
         "total_replicates": total_replicates,
         "recording_start_time": recording_start_time,
+        "recording_start_date": recording_start_date,
         "raw_img_paths": raw_img_paths
     }
-
-def parse_metadata(directory_path: Path) -> Dict:
-    """Parses directory path and image filenames to extract all metadata."""
-    path_metadata = _parse_path_metadata(directory_path)
-    file_metadata = _parse_file_metadata(directory_path, path_metadata["recording_start_date"])
-
-    return {**path_metadata, **file_metadata}

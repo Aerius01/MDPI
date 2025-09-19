@@ -22,7 +22,7 @@ def plot_size_profiles(data: pd.DataFrame, output_path: str, config: PlotConfig,
     Generate single profile plots per size class ('sizeclass' column).
 
     Expects columns:
-      - project, recording_start_date, cycle (optional), depth, bin_size, concentration, sizeclass
+      - recording_start_date, depth, bin_size, concentration, sizeclass
     The function creates a horizontal bar plot of concentration (ind/L) vs depth for each sizeclass.
     """
     if data.empty:
@@ -30,7 +30,7 @@ def plot_size_profiles(data: pd.DataFrame, output_path: str, config: PlotConfig,
         return
 
     required_columns = [
-        'project', 'recording_start_date', 'depth', 'bin_size', 'concentration', 'sizeclass'
+        'recording_start_date', 'depth', 'bin_size', 'concentration', 'sizeclass'
     ]
     missing = _validate_columns(data, required_columns)
     if missing:
@@ -39,9 +39,7 @@ def plot_size_profiles(data: pd.DataFrame, output_path: str, config: PlotConfig,
 
     # Metadata (assumes one sample per file)
     first_row = data.iloc[0]
-    project = first_row['project']
     date = first_row['recording_start_date']
-    cycle = first_row['cycle'] if 'cycle' in data.columns else None
 
     # Group by species label and sizeclass and plot each
     label_key = 'label' if 'label' in data.columns else None
@@ -57,7 +55,7 @@ def plot_size_profiles(data: pd.DataFrame, output_path: str, config: PlotConfig,
 
         # Figure and aesthetics
         fig, ax = plt.subplots(figsize=config.figsize)
-        bar_color = config.day_color if cycle == 'day' else config.night_color
+        bar_color = config.day_color
 
         # Horizontal bar plot
         ax.barh(
@@ -70,7 +68,7 @@ def plot_size_profiles(data: pd.DataFrame, output_path: str, config: PlotConfig,
         )
 
         # Title and labels
-        title_parts = [str(x) for x in [project, species_label, f"sizeclass_{size_class}", date, cycle] if x not in (None, '')]
+        title_parts = [str(x) for x in [species_label, f"sizeclass_{size_class}", date] if x not in (None, '')]
         plot_title = '_'.join(title_parts)
         setup_plot_aesthetics(ax, plot_title)
 

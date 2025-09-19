@@ -4,6 +4,8 @@ import pickle
 import os
 import pandas as pd
 
+from modules.object_classification.classification_data import ClassificationData
+
 class ClassificationProcessor:
     def save_results(self, results: Dict[str, Any], output_path: Path, filename: str):
         """Save classification results to pickle file."""
@@ -64,4 +66,11 @@ class ClassificationProcessor:
         
         file_path = os.path.join(output_path, filename)
         merged_df.to_csv(file_path, index=False, sep=';')
-        print(f"[CLASSIFICATION]: Updated existing CSV at {file_path}") 
+        print(f"[CLASSIFICATION]: Updated existing CSV at {file_path}")
+        
+    def add_metadata_to_dataframe(self, df: pd.DataFrame, classification_data: ClassificationData) -> pd.DataFrame:
+        """
+        Adds metadata to the classification dataframe.
+        """
+        df['recording_start_date'] = classification_data.recording_start_date
+        return df 

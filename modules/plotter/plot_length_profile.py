@@ -22,8 +22,7 @@ def plot_length_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
     Generate and save length (mm) vs depth (m) scatter plots per taxonomic label.
 
     Expected columns in data:
-      - project, recording_start_date, cycle, label, depth, MajorAxisLength
-      - location (optional, used for file naming if present)
+      - recording_start_date, label, depth, MajorAxisLength
     """
     if data.empty:
         print("Input data is empty. No length plots will be generated.")
@@ -31,7 +30,7 @@ def plot_length_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
 
     # Validate columns
     required_columns = [
-        'project', 'recording_start_date', 'cycle', 'label', 'depth', 'MajorAxisLength'
+        'recording_start_date', 'label', 'depth', 'MajorAxisLength'
     ]
     missing = _validate_columns(data, required_columns)
     if missing:
@@ -44,10 +43,7 @@ def plot_length_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
 
     # Metadata (assume single sample per file)
     first_row = data.iloc[0]
-    project = first_row['project']
     date = first_row['recording_start_date']
-    cycle = first_row['cycle']
-    location = first_row['location'] if 'location' in data.columns else None
 
     # Groups to plot
     for group, group_df in data.groupby('label'):
@@ -56,13 +52,13 @@ def plot_length_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
 
         # Figure setup
         fig, ax = plt.subplots(figsize=config.figsize)
-        point_color = config.day_color if cycle == 'day' else config.night_color
+        point_color = config.day_color
 
         # Scatter plot (length on x, depth on y)
         ax.scatter(group_df['length_mm'], group_df['depth'], s=10, c=point_color, edgecolors=config.edge_color, linewidths=0.5)
 
         # Labels and title
-        title_parts = [str(x) for x in [project, group, date, cycle, location] if x]
+        title_parts = [str(x) for x in [group, date] if x]
         plot_title = '_'.join(title_parts)
         setup_plot_aesthetics(ax, plot_title, xlabel='Length (mm)', ylabel='Depth (m)')
 
@@ -73,10 +69,8 @@ def plot_length_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
         configure_axes(ax, max_depth, max_length, is_symmetric=False, depth_tick_step=1, conc_tick_step=0.5)
 
         # Save
-        base_prefix_parts = [str(x) for x in [project, group, date, cycle] if x]
+        base_prefix_parts = [str(x) for x in [group, date] if x]
         file_stem = f"{'_'.join(base_prefix_parts)}_length"
-        if location is not None:
-            file_stem = f"{file_stem}_{location}"
         file_name = f"{file_stem}.{config.file_format}"
         sub_output_path = os.path.join(output_path, 'plots', str(group))
         save_plot(fig, sub_output_path, file_name)

@@ -2,9 +2,10 @@ import argparse
 from pathlib import Path
 import pandas as pd
 from modules.common.fs_utils import ensure_dir
-from .utils import parse_flatfield_metadata_from_directory
+from modules.common.parser import _list_image_filenames, _build_image_paths
 import os
 from dataclasses import dataclass, fields
+from types import SimpleNamespace
 
 # ─── O B J E C T · D E T E C T I O N · P A R A M E T E R S ──────────────────────────
 # Thresholding values for image binarization
@@ -41,10 +42,6 @@ class DetectionData:
     depth_profiles_df: pd.DataFrame
     
     # Metadata attributes
-    project: str
-    recording_start_date: str
-    cycle: str
-    location: str
     flatfield_img_paths: list[str]
 
     def __init__(self, **kwargs):
@@ -55,31 +52,29 @@ class DetectionData:
             if field.name in kwargs:
                 setattr(self, field.name, kwargs[field.name])
 
-def validate_arguments(args: argparse.Namespace) -> DetectionData:
+def validate_arguments(run_config: SimpleNamespace, flatfield_dir: str, depth_profiles_df: pd.DataFrame) -> DetectionData:
     """
     Processes and validates the command-line arguments.
     """
-    input_path = Path(args.input)
-    metadata = parse_flatfield_metadata_from_directory(input_path)
+    input_path = Path(flatfield_dir)
+    
+    # Get flatfield-specific file paths
+    filenames = _list_image_filenames(input_path)
+    flatfield_img_paths = _build_image_paths(input_path, filenames)
+    run_config.metadata['flatfield_img_paths'] = flatfield_img_paths
 
-    output_dir = ensure_dir(args.output)
-    date_str = metadata["recording_start_date"].strftime("%Y%m%d")
-    output_path = os.path.join(output_dir, metadata["project"], date_str, metadata["cycle"], metadata["location"], "vignettes")
+    output_dir = ensure_dir(run_config.output_root)
+    output_path = os.path.join(output_dir, "vignettes")
     os.makedirs(output_path, exist_ok=True)
 
-    depth_profiles_path = Path(args.depth_profiles)
-    if not depth_profiles_path.is_file():
-        raise FileNotFoundError(f"Depth profiles CSV file not found at: {depth_profiles_path}")
-    
-    depth_profiles_df = pd.read_csv(depth_profiles_path, sep=None, engine='python')
     required_columns = ['image_id', 'depth']
     if not all(col in depth_profiles_df.columns for col in required_columns):
-        raise ValueError(f"Required columns ('image_id', 'depth') not found in depth profiles file: {depth_profiles_path}")
+        raise ValueError(f"Required columns ('image_id', 'depth') not found in depth profiles file")
     
     depth_profiles_df = depth_profiles_df[['image_id', 'depth']]
 
     return DetectionData(
-        **metadata,
+        **run_config.metadata,
         input_path=input_path,
         output_path=output_path,
         depth_profiles_df=depth_profiles_df

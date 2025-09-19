@@ -1,12 +1,13 @@
 from .inference_engine import InferenceEngine
 from .classification_data import ClassificationData
 from .processor import ClassificationProcessor
+import pandas as pd
 
 def run_classification(
     data: ClassificationData,
     inference_engine: InferenceEngine,
     processor: ClassificationProcessor,
-):
+) -> pd.DataFrame:
     """Main classification function for processing a single image group."""
     print('[CLASSIFICATION]: Starting vignettes classification...')
     
@@ -22,9 +23,9 @@ def run_classification(
         # Assemble the classification dataframe and merge the detection dataframe into it, before saving as a .csv file
         classification_df = processor.assemble_classification_dataframe(results, data.left_join_key)
         merged_df = processor.left_join_dataframes(classification_df, data.detection_df, key=data.left_join_key)
-        processor.save_csv_results(merged_df, data.output_path, data.csv_filename)
         
     finally:
         inference_engine.close()
     
-    print('[CLASSIFICATION]: Vignettes classification completed successfully!') 
+    print('[CLASSIFICATION]: Vignettes classification completed successfully!')
+    return merged_df 
