@@ -50,3 +50,6 @@ The object detection process is heavily controlled by a set of constants defined
 -   **Parameter Sensitivity:** The module's performance is highly sensitive to the constants used for filtering. The default values are optimized for a specific type of plankton and imaging setup. Different organisms, water turbidity, or camera settings will likely require significant tuning of these parameters to achieve optimal results.
 -   **No Model-Based Detection:** This module uses traditional computer vision techniques (thresholding, contour analysis) rather than a trained machine learning model. This makes it fast and interpretable but potentially less robust at handling variations in object appearance or complex backgrounds compared to model-based approaches like YOLO or Faster R-CNN.
 -   **Overlapping Objects:** The current implementation may struggle to correctly segment objects that are touching or overlapping in the original image, potentially treating them as a single, larger object.
+
+### Improvements
+- This module is the longest to execute, but as luck would have it, is also a perfect target for parallelization

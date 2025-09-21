@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Tuple
 import pandas as pd
-import cv2
 from types import SimpleNamespace
 
 from modules.common.constants import CONSTANTS
@@ -106,15 +105,7 @@ def process_arguments(run_config: SimpleNamespace) -> DepthProfilingData:
     Processes command line arguments and prepares data for depth profiling.
     Automatically detects camera format and configures all parameters accordingly.
     """
-    # Read the first image to determine the image height in pixels
-    if not run_config.metadata["raw_img_paths"]:
-        raise FileNotFoundError("No image files found in the input directory.")
-        
-    first_image_path = run_config.metadata["raw_img_paths"][0]
-    image = cv2.imread(first_image_path)
-    if image is None:
-        raise ValueError(f"Could not read image file: {first_image_path}")
-    image_height_pixels = image.shape[0]
+    image_height_pixels = run_config.metadata["image_height_pixels"]
 
     final_csv_params, final_depth_params = create_camera_parameters(
         is_new_format=run_config.camera_format == "new",

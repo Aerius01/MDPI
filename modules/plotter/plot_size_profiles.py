@@ -1,5 +1,4 @@
 import os
-from typing import List
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -12,11 +11,6 @@ from modules.plotter.plot_utils import (
     _calculate_nice_step,
 )
 
-
-def _validate_columns(df: pd.DataFrame, required_columns: List[str]) -> List[str]:
-    return [col for col in required_columns if col not in df.columns]
-
-
 def plot_size_profiles(data: pd.DataFrame, output_path: str, config: PlotConfig, depth_tick_step: float = 1.0, conc_tick_step: float = 100.0):
     """
     Generate single profile plots per size class ('sizeclass' column).
@@ -25,18 +19,6 @@ def plot_size_profiles(data: pd.DataFrame, output_path: str, config: PlotConfig,
       - recording_start_date, depth, bin_size, concentration, sizeclass
     The function creates a horizontal bar plot of concentration (ind/L) vs depth for each sizeclass.
     """
-    if data.empty:
-        print("[PLOTTER]: Size class input data is empty. Skipping size class plots.")
-        return
-
-    required_columns = [
-        'recording_start_date', 'depth', 'bin_size', 'concentration', 'sizeclass'
-    ]
-    missing = _validate_columns(data, required_columns)
-    if missing:
-        print(f"[PLOTTER]: Input data missing required columns for size class plotting: {', '.join(missing)}. Skipping.")
-        return
-
     # Metadata (assumes one sample per file)
     first_row = data.iloc[0]
     date = first_row['recording_start_date']

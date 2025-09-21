@@ -18,11 +18,6 @@ def plot_single_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
     """
     Generates and saves profile plots for each group in the dataframe.
     """
-    # get metadata from the first row (assuming it's consistent for the file)
-    if data.empty:
-        print("Input data is empty. No plots will be generated.")
-        return
-
     first_row = data.iloc[0]
     date = first_row['recording_start_date']
 

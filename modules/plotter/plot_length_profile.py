@@ -1,45 +1,24 @@
-import pandas as pd
 import matplotlib.pyplot as plt
 import os
-from typing import List
 
 from modules.plotter.plot_utils import setup_plot_aesthetics, configure_axes, save_plot
-from modules.plotter.constants import PLOTTING_CONSTANTS
+from modules.plotter.plotter_data import PlotterData
 from modules.plotter.plot_profile import PlotConfig
 
 
-# Use centralized pixel size constant
-PIXEL_SIZE_UM = PLOTTING_CONSTANTS.PIXEL_SIZE_UM  # micrometers per pixel
-LENGTH_X_MAX_MM = 3.0  # crop x-axis at 3 mm for consistency
-
-
-def _validate_columns(df: pd.DataFrame, required_columns: List[str]) -> List[str]:
-    return [col for col in required_columns if col not in df.columns]
-
-
-def plot_length_profile(data: pd.DataFrame, output_path: str, config: PlotConfig):
+def plot_length_profile(plotter_data: PlotterData, config: PlotConfig):
     """
     Generate and save length (mm) vs depth (m) scatter plots per taxonomic label.
 
     Expected columns in data:
       - recording_start_date, label, depth, MajorAxisLength
     """
-    if data.empty:
-        print("Input data is empty. No length plots will be generated.")
-        return
-
-    # Validate columns
-    required_columns = [
-        'recording_start_date', 'label', 'depth', 'MajorAxisLength'
-    ]
-    missing = _validate_columns(data, required_columns)
-    if missing:
-        print(f"Error: Input data is missing required columns for length plotting: {', '.join(missing)}")
-        return
+    data = plotter_data.object_data_df
+    output_path = plotter_data.output_root
 
     # Convert length from pixels to millimeters
     data = data.copy()
-    data['length_mm'] = (data['MajorAxisLength'] * PIXEL_SIZE_UM) / 1000.0
+    data['length_mm'] = (data['MajorAxisLength'] * plotter_data.pixel_size_um) / 1000.0
 
     # Metadata (assume single sample per file)
     first_row = data.iloc[0]
@@ -64,7 +43,7 @@ def plot_length_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
 
         # Axes configuration
         # Use fixed max x for consistency across plots
-        max_length = LENGTH_X_MAX_MM
+        max_length = plotter_data.length_x_max_mm
         max_depth = group_df['depth'].max() if not group_df.empty else 0
         configure_axes(ax, max_depth, max_length, is_symmetric=False, depth_tick_step=1, conc_tick_step=0.5)
 

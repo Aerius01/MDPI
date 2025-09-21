@@ -6,21 +6,9 @@ Replicates the exact functionality for calculating concentration data from depth
 
 import pandas as pd
 import numpy as np
-from dataclasses import dataclass
 from typing import Sequence, List
-from modules.plotter.constants import PLOTTING_CONSTANTS
+from modules.plotter.plotter_data import PlotterData
 
-# Pixel size in micrometers; centralized
-PIXEL_SIZE_UM = PLOTTING_CONSTANTS.PIXEL_SIZE_UM
-
-@dataclass
-class ConcentrationConfig:
-    """Configuration for concentration calculation."""
-    max_depth: float
-    bin_size: float
-    output_file_name: str
-    img_depth: float
-    img_width: float
 
 # Custom functions equivalent to R tools
 
@@ -126,11 +114,12 @@ def get_concentration_data(
     
     return concentration_data
 
-def calculate_concentration_data(data: pd.DataFrame, config: ConcentrationConfig) -> pd.DataFrame:
+def calculate_concentration_data(plotter_data: PlotterData) -> pd.DataFrame:
     """Main function for orchestrating concentration data calculation."""
+    data = plotter_data.object_data_df
     
     # Create sequence of bins - equivalent to seq(bin_size, max_depth, bin_size)
-    depth_bins = np.arange(config.bin_size, config.max_depth + config.bin_size, config.bin_size)
+    depth_bins = np.arange(plotter_data.bin_size, plotter_data.max_depth + plotter_data.bin_size, plotter_data.bin_size)
         
     # Assign measurements to depth bins
     # Equivalent to sapply(data$depth, DepthBin, depth_bins)
@@ -138,7 +127,7 @@ def calculate_concentration_data(data: pd.DataFrame, config: ConcentrationConfig
     
     # Calculate concentrations per group and bin
     concentration_data = get_concentration_data(
-        data, config.bin_size, depth_bins, config.img_depth, config.img_width
+        data, plotter_data.bin_size, depth_bins, plotter_data.img_depth, plotter_data.img_width
     )
     
     return concentration_data
@@ -146,16 +135,16 @@ def calculate_concentration_data(data: pd.DataFrame, config: ConcentrationConfig
 
 # ------------------ Size class concentration calculation ------------------
 
-def _assign_size_classes(group_df: pd.DataFrame, num_classes: int = 3) -> pd.Series:
+def _assign_size_classes(group_df: pd.DataFrame, pixel_size_um: float, num_classes: int = 3) -> pd.Series:
     """
     Assign quantile-based size classes within a taxonomic label group using EquivDiameter.
     Returns a categorical series with labels '1'..'num_classes'.
     """
     # Prefer EquivDiameter; fallback to MajorAxisLength if needed
     if 'EquivDiameter' in group_df.columns:
-        size_metric = (group_df['EquivDiameter'] * PIXEL_SIZE_UM) / 1000.0
+        size_metric = (group_df['EquivDiameter'] * pixel_size_um) / 1000.0
     elif 'MajorAxisLength' in group_df.columns:
-        size_metric = (group_df['MajorAxisLength'] * PIXEL_SIZE_UM) / 1000.0
+        size_metric = (group_df['MajorAxisLength'] * pixel_size_um) / 1000.0
     else:
         # No metric available; everything goes to class '1'
         return pd.Series(['1'] * len(group_df), index=group_df.index, dtype=str)
@@ -173,13 +162,22 @@ def _assign_size_classes(group_df: pd.DataFrame, num_classes: int = 3) -> pd.Ser
             return pd.Series(['1'] * len(group_df), index=group_df.index, dtype=str)
 
 
-def calculate_sizeclass_concentration_data(data: pd.DataFrame, config: ConcentrationConfig, groups: List[str] = None) -> pd.DataFrame:
+def calculate_sizeclass_concentration_data(
+    object_data_df: pd.DataFrame, 
+    bin_size: float, 
+    max_depth: float, 
+    img_depth: float, 
+    img_width: float, 
+    pixel_size_um: float,
+    groups: List[str] = None
+) -> pd.DataFrame:
     """
     Calculate concentration data aggregated by size classes (1..3) within each taxonomic label.
     Mirrors MDPI-Ashton/tools/io/GetConcentrationDataSizeClass.R using Python.
     """
+    data = object_data_df
     # Create sequence of bins - equivalent to seq(bin_size, max_depth, bin_size)
-    depth_bins = np.arange(config.bin_size, config.max_depth + config.bin_size, config.bin_size)
+    depth_bins = np.arange(bin_size, max_depth + bin_size, bin_size)
 
     # Assign measurements to depth bins
     data = data.copy()
@@ -189,7 +187,7 @@ def calculate_sizeclass_concentration_data(data: pd.DataFrame, config: Concentra
     if 'sizeclass' not in data.columns:
         data['sizeclass'] = (
             data.groupby('label', group_keys=False)
-                .apply(lambda g: _assign_size_classes(g))
+                .apply(lambda g: _assign_size_classes(g, pixel_size_um))
         )
 
     # Determine which size classes to use
@@ -214,7 +212,7 @@ def calculate_sizeclass_concentration_data(data: pd.DataFrame, config: Concentra
             for i, bin_depth in enumerate(depth_bins):
                 counts[i] = (subset['depth_bin'] == bin_depth).sum()
 
-            concentrations = calculate_concentration(counts, config.bin_size, config.img_depth, config.img_width)
+            concentrations = calculate_concentration(counts, bin_size, img_depth, img_width)
 
             meta_date = subset['recording_start_date'].iloc[0] if 'recording_start_date' in subset.columns else subset.get('date', pd.Series([None])).iloc[0]
 
@@ -223,7 +221,7 @@ def calculate_sizeclass_concentration_data(data: pd.DataFrame, config: Concentra
                 'depth': np.round(depth_bins, 2),
                 'plot_depth': np.round(depth_bin_offset(depth_bins), 2),
                 'sizeclass': [size_group] * len(depth_bins),
-                'bin_size': [config.bin_size] * len(depth_bins),
+                'bin_size': [bin_size] * len(depth_bins),
                 'concentration': concentrations,
             }
             if label_value is not None:

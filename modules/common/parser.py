@@ -2,6 +2,7 @@ import datetime
 import os
 from pathlib import Path
 from typing import Dict
+import cv2
 
 # Shared helpers and constants
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.tiff'}
@@ -27,6 +28,18 @@ def _parse_hhmmssmmm(time_str: str) -> datetime.time:
     time_str_for_strptime = time_str[:6] + f"{int(time_str[6:]) * 1000:06d}"
     return datetime.datetime.strptime(time_str_for_strptime, "%H%M%S%f").time()
 
+def find_single_csv_file(directory_path: Path) -> str:
+    """Finds the single .csv file in the directory and returns its path."""
+    p = directory_path
+    csv_files = [f for f in os.listdir(p) if f.lower().endswith('.csv')]
+
+    if len(csv_files) == 0:
+        raise ValueError(f"No CSV file found in directory '{p}'")
+    if len(csv_files) > 1:
+        raise ValueError(f"Multiple CSV files found in directory '{p}': {', '.join(csv_files)}")
+
+    return str(p / csv_files[0])
+
 def parse_file_metadata(directory_path: Path) -> Dict:
     """
     Parses an image filename to get the replicate number, recording time, and date.
@@ -34,6 +47,14 @@ def parse_file_metadata(directory_path: Path) -> Dict:
     filenames = _list_image_filenames(directory_path)
     raw_img_paths = [str(directory_path / filename) for filename in filenames]
     
+    # Get image resolution from the first image
+    first_image_path = raw_img_paths[0]
+    image = cv2.imread(first_image_path)
+    if image is None:
+        raise ValueError(f"Could not read image file: {first_image_path}")
+    image_height_pixels = image.shape[0]
+    image_width_pixels = image.shape[1]
+
     # Get the last image file in the list (filenames are sorted)
     image_filename = filenames[-1]
 
@@ -62,5 +83,7 @@ def parse_file_metadata(directory_path: Path) -> Dict:
         "total_replicates": total_replicates,
         "recording_start_time": recording_start_time,
         "recording_start_date": recording_start_date,
-        "raw_img_paths": raw_img_paths
+        "raw_img_paths": raw_img_paths,
+        "image_height_pixels": image_height_pixels,
+        "image_width_pixels": image_width_pixels,
     }
