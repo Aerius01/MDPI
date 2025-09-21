@@ -17,7 +17,7 @@ def _load_pressure_sensor_csv(
     """Load and process CSV depth data using pandas chaining."""
     df = read_csv_with_encodings(
         csv_path,
-        sep=csv_params.separator,
+        sep=csv_params.read_separator,
         header=csv_params.header_row,
         skipfooter=csv_params.skipfooter,
         engine='python'
@@ -135,7 +135,7 @@ def profile_depths(data: DepthProfilingData):
         )
         
         output_csv_path = os.path.join(data.run_config.output_root, "depth_profiles" + data.csv_params.extension)
-        mapped_df.to_csv(output_csv_path, index=False, sep=';')
+        mapped_df.to_csv(output_csv_path, index=False, sep=data.csv_params.write_separator)
         print(f"[PROFILING]: Successfully saved data to {output_csv_path}")
         print(f"[PROFILING]: Processing completed successfully!")
         return mapped_df

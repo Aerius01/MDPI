@@ -1,11 +1,8 @@
 from dataclasses import dataclass
-import argparse
 from pathlib import Path
 import pandas as pd
 import os
-from modules.common.parser import parse_file_metadata
 from modules.common.constants import CONSTANTS
-from modules.common.fs_utils import ensure_dir
 from types import SimpleNamespace
 
 # ─── F L A T F I E L D I N G · P A R A M E T E R S ──────────────────────────────────
@@ -45,19 +42,12 @@ def validate_depth_profiles(depth_df: pd.DataFrame):
         raise ValueError(f"The 'image_path' column in the depth profiles CSV file contains duplicate values: {duplicates}")
 
 def process_arguments(run_config: SimpleNamespace, depth_df: pd.DataFrame) -> FlatfieldingData:
-    # Get image paths from input directory
-    print(f"[FLATFIELDING]: Loading images from {run_config.input_dir}")
-
-    # Load and validate depth profiles
-    print(f"[FLATFIELDING]: Using depth profiles DataFrame.")
-    validate_depth_profiles(depth_df)
-
     # Create a mapping from absolute image path to pixel_overlap value
+    validate_depth_profiles(depth_df)
     overlap_map = pd.Series(depth_df.pixel_overlap.values, index=depth_df.image_path).to_dict()
 
-    # Validate and create output path
-    output_dir = ensure_dir(run_config.output_root)
-    output_path = os.path.join(output_dir, "flatfielded_images")
+    # Create output path
+    output_path = os.path.join(Path(run_config.output_root), CONSTANTS.FLATFIELD_DIR_NAME)
     os.makedirs(output_path, exist_ok=True)
 
     return FlatfieldingData(

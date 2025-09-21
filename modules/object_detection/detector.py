@@ -26,9 +26,9 @@ class MappedImageRegions:
     source_image: np.ndarray
     processed_regions: List[ProcessedRegion]
 
-def detect_objects(
+def _detect_objects(
     data: DetectionData,
-):
+) -> pd.DataFrame:
     """
     Run the object detection process over flatfielded images and save outputs.
     """
@@ -45,7 +45,7 @@ def detect_objects(
         batch_end = i + data.batch_size
         batch_image_paths = image_paths[i:batch_end]
 
-        batch_images, batch_binary_images = load_and_threshold_images(
+        batch_images, batch_binary_images = _load_and_threshold_images(
             batch_image_paths, 
             data.threshold_value, 
             data.threshold_max
@@ -53,19 +53,20 @@ def detect_objects(
         mapped_regions_batch = _detect_objects_in_batch(batch_images, batch_binary_images, batch_image_paths, data)
 
         for mapped_region in mapped_regions_batch:
-            process_vignette_generator = process_vignette(mapped_region, data.output_path)
+            process_vignette_generator = _process_vignette(mapped_region, data.output_path)
             for region_data, vignette_img, vignette_path in process_vignette_generator:
                 all_region_data.append(region_data)
                 cv2.imwrite(vignette_path, vignette_img)
                 output_count += 1
 
-    combined_df = create_dataframe(all_region_data, data.depth_profiles_df)
-    save_dataframe(combined_df, output_count, data.output_path, data.csv_extension, data.csv_separator)
-
+    combined_df = _create_dataframe(all_region_data, data.depth_profiles_df)
+    
     print(f"[DETECTION]: Processing completed successfully!")
     print(f"[DETECTION]: {output_count} vignettes saved to {data.output_path}")
 
-def load_and_threshold_images(
+    return combined_df
+
+def _load_and_threshold_images(
     image_paths: List[str], 
     threshold_value: int, 
     threshold_max: int
@@ -114,7 +115,7 @@ def _detect_objects_in_batch(images: List[np.ndarray], binary_images: List[np.nd
     
     return mapped_image_regions
 
-def filter_regions(
+def _filter_regions(
     regions: List, 
     max_eccentricity: float,
     max_mean_intensity: int,
@@ -133,7 +134,7 @@ def filter_regions(
             r.min_intensity < max_min_intensity)
     ]
 
-def calculate_crop_padding(major_axis_length: float, data: DetectionData) -> int:
+def _calculate_crop_padding(major_axis_length: float, data: DetectionData) -> int:
     """Calculate appropriate padding based on object size."""
     if major_axis_length < data.small_object_threshold:
         return data.small_object_padding
@@ -144,7 +145,7 @@ def calculate_crop_padding(major_axis_length: float, data: DetectionData) -> int
 
 def process_regions(regions: List, image_shape: Tuple[int, int], data: DetectionData) -> List[ProcessedRegion]:
     """Process regions: filter, extract data, and save crops."""
-    valid_regions = filter_regions(
+    valid_regions = _filter_regions(
         regions,
         data.max_eccentricity,
         data.max_mean_intensity,
@@ -158,7 +159,7 @@ def process_regions(regions: List, image_shape: Tuple[int, int], data: Detection
     for i, region in enumerate(valid_regions):
         
         row, col = int(region.centroid[0]), int(region.centroid[1])
-        padding = calculate_crop_padding(region.major_axis_length, data)
+        padding = _calculate_crop_padding(region.major_axis_length, data)
         
         minr = max(0, row - padding)
         minc = max(0, col - padding)
@@ -190,7 +191,7 @@ def process_regions(regions: List, image_shape: Tuple[int, int], data: Detection
     
     return processed_regions
 
-def create_dataframe(data_list: list, depth_profiles_df: pd.DataFrame) -> pd.DataFrame:
+def _create_dataframe(data_list: list, depth_profiles_df: pd.DataFrame) -> pd.DataFrame:
     # Create a combined DataFrame from all processed regions
     if not data_list:
         return pd.DataFrame()
@@ -211,22 +212,7 @@ def create_dataframe(data_list: list, depth_profiles_df: pd.DataFrame) -> pd.Dat
 
     return combined_df
 
-def save_dataframe(combined_df: pd.DataFrame, output_count: int, output_path: str, csv_extension: str, csv_separator: str) -> None:
-    """Save detection results to CSV and text files."""
-    if combined_df.empty:
-        print(f"[DETECTION]: Detection completed. No objects detected.")
-        print(f"[DETECTION]: {output_count} vignettes created in {output_path}")
-        return
-
-    # Save results
-    csv_output_file = os.path.join(Path(output_path).parent, f'object_data{csv_extension}')
-    combined_df.to_csv(csv_output_file, sep=csv_separator, index=False)
-
-    print(f"[DETECTION]: Processing completed successfully!")
-    print(f"[DETECTION]: {len(combined_df)} objects saved to {csv_output_file}")
-    print(f"[DETECTION]: {output_count} vignettes saved to {output_path}")
-
-def process_vignette(mapped_region: MappedImageRegions, output_path: str):
+def _process_vignette(mapped_region: MappedImageRegions, output_path: str):
     """
     Prepare vignette data and yield it for each processed region.
     

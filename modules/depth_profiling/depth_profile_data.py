@@ -33,12 +33,13 @@ PRESSURE_SENSOR_CSV_SEPARATOR = ';' # Separator to decode the pressure sensor CS
 @dataclass(frozen=True)
 class CsvParams:
     """Parameters for parsing CSV files."""
-    separator: str
+    read_separator: str
     header_row: int
     skipfooter: int
     extension: str
     time_column_name: str
     depth_column_name: str
+    write_separator: str
 
 @dataclass(frozen=True)
 class DepthParams:
@@ -83,12 +84,13 @@ def detect_camera_format(df: pd.DataFrame) -> str:
 def create_camera_parameters(is_new_format: bool, image_height_pixels: int, image_height_cm: float) -> Tuple[CsvParams, DepthParams]:
     """Create appropriate CSV and depth parameters based on detected camera format."""
     csv_params = CsvParams(
-        separator=PRESSURE_SENSOR_CSV_SEPARATOR,
+        read_separator=PRESSURE_SENSOR_CSV_SEPARATOR,
         header_row=NEW_FORMAT_HEADER_ROW if is_new_format else OLD_FORMAT_HEADER_ROW,
         skipfooter=NEW_FORMAT_SKIPFOOTER if is_new_format else OLD_FORMAT_SKIPFOOTER,
         extension=CONSTANTS.CSV_EXTENSION,
         time_column_name=NEW_FORMAT_TIME_COLUMN_SEARCH if is_new_format else OLD_FORMAT_TIME_COLUMN_SEARCH,
-        depth_column_name=NEW_FORMAT_DEPTH_COLUMN_SEARCH if is_new_format else OLD_FORMAT_DEPTH_COLUMN_SEARCH
+        depth_column_name=NEW_FORMAT_DEPTH_COLUMN_SEARCH if is_new_format else OLD_FORMAT_DEPTH_COLUMN_SEARCH,
+        write_separator=CONSTANTS.CSV_SEPARATOR
     )
 
     depth_params = DepthParams(

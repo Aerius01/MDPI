@@ -1,3 +1,3 @@
-from .inference_engine import InferenceEngine
+from .inference_engine import _InferenceEngine
 
-__all__ = ['InferenceEngine'] 
+__all__ = ['_InferenceEngine'] 

@@ -29,8 +29,6 @@ LARGE_OBJECT_PADDING: int = 40
 SMALL_OBJECT_THRESHOLD: int = 40
 MEDIUM_OBJECT_THRESHOLD: int = 50
 
-OUTPUT_CSV_SEPARATOR = ';'
-
 @dataclass
 class DetectionData:
     """
@@ -58,8 +56,6 @@ class DetectionData:
     small_object_padding: int
     medium_object_padding: int
     batch_size: int
-    csv_extension: str
-    csv_separator: str
 
     def __init__(self, **kwargs):
         """
@@ -69,10 +65,11 @@ class DetectionData:
             if field.name in kwargs:
                 setattr(self, field.name, kwargs[field.name])
 
-def validate_arguments(run_config: SimpleNamespace, flatfield_dir: str, depth_profiles_df: pd.DataFrame) -> DetectionData:
+def _validate_arguments(run_config: SimpleNamespace, depth_profiles_df: pd.DataFrame) -> DetectionData:
     """
     Processes and validates the command-line arguments.
     """
+    flatfield_dir = os.path.join(run_config.output_root, CONSTANTS.FLATFIELD_DIR_NAME)
     input_path = Path(flatfield_dir)
     
     # Get flatfield-specific file paths
@@ -80,7 +77,7 @@ def validate_arguments(run_config: SimpleNamespace, flatfield_dir: str, depth_pr
     flatfield_img_paths = [str(input_path / filename) for filename in filenames]
     run_config.metadata['flatfield_img_paths'] = flatfield_img_paths
 
-    output_path = os.path.join(Path(run_config.output_root), "vignettes")
+    output_path = os.path.join(Path(run_config.output_root), CONSTANTS.VIGNETTES_DIR_NAME)
     os.makedirs(output_path, exist_ok=True)
     
     return DetectionData(
@@ -101,7 +98,5 @@ def validate_arguments(run_config: SimpleNamespace, flatfield_dir: str, depth_pr
         large_object_padding=LARGE_OBJECT_PADDING,
         small_object_padding=SMALL_OBJECT_PADDING,
         medium_object_padding=MEDIUM_OBJECT_PADDING,
-        batch_size=CONSTANTS.BATCH_SIZE,
-        csv_extension=CONSTANTS.CSV_EXTENSION,
-        csv_separator=OUTPUT_CSV_SEPARATOR
+        batch_size=CONSTANTS.BATCH_SIZE
     ) 

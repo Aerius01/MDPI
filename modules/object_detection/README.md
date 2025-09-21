@@ -19,7 +19,7 @@ The object detection process is executed through a series of sequential steps:
 
 5.  **Vignette Generation:** For each valid object, a vignette is created by cropping a small rectangular area around the object's centroid from the original, non-binary image. The size of the crop is dynamically padded based on the object's major axis length to ensure the entire object is captured.
 
-6.  **Data Aggregation and Output:** The feature data for every detected object is compiled into a single pandas DataFrame. This DataFrame is then merged with the depth information and metadata. The final dataset is saved as a CSV file, and the generated vignettes are saved as individual image files.
+6.  **Data Aggregation and Output:** The feature data for every detected object is compiled into a single pandas DataFrame. This DataFrame is then merged with the depth information and metadata. The final dataset is held in memory and passed along to the classification module for further processing, whereas the generated vignettes are saved to disk as individual image files.
 
 ## Constants, Concerns, and Limitations
 

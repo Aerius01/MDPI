@@ -1,15 +1,10 @@
 from types import SimpleNamespace
 import pandas as pd
+from .detection_data import _validate_arguments
+from .detector import _detect_objects
 
-from .detection_data import (
-    validate_arguments,
-)
-from .detector import detect_objects
-
-
-def run_detection(run_config: SimpleNamespace, flatfield_dir: str, depth_df: pd.DataFrame) -> str:
-    """Run detection and return the vignettes output directory."""
-    detection_data = validate_arguments(run_config, flatfield_dir, depth_df)
-
-    detect_objects(detection_data)
-    return detection_data.output_path
+def run_detection(run_config: SimpleNamespace, depth_df: pd.DataFrame) -> pd.DataFrame:
+    """Run detection."""
+    detection_data = _validate_arguments(run_config, depth_df)
+    object_data_df = _detect_objects(detection_data)
+    return object_data_df
