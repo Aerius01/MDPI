@@ -1,5 +1,14 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFrame, QScrollArea, QHBoxLayout, QLabel
-from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, QParallelAnimationGroup
+import os
+
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QPushButton, QFrame, 
+    QScrollArea, QSizePolicy, QHBoxLayout, QLabel
+)
+from PySide6.QtCore import (
+    Qt, QPropertyAnimation, QParallelAnimationGroup, QAbstractAnimation,
+    QEasingCurve
+)
+from PySide6.QtGui import QIcon
 
 class CollapsibleBox(QWidget):
     """
@@ -31,7 +40,7 @@ class CollapsibleBox(QWidget):
         button_layout.setSpacing(5)
 
         self.arrow_label = QLabel()
-        self.title_label = QLabel(self.title)
+        self.title_label = QLabel(title)
         self.title_label.setStyleSheet("font-weight: bold; background: transparent;")
         
         button_layout.addWidget(self.arrow_label)

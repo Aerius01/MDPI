@@ -1,6 +1,8 @@
 import sys
 import multiprocessing
-from PyQt6.QtCore import QObject, pyqtSignal, QThread
+from PySide6.QtCore import QObject, Signal
+import contextlib
+from io import StringIO
 
 # Add project root to sys.path to allow for module imports from the new process
 import os
@@ -9,6 +11,8 @@ if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
 from run_pipeline import execute_pipeline, validate_inputs_and_setup
+import time
+import traceback
 
 class QueueLogger:
     """A file-like object that writes to a multiprocessing queue."""
@@ -22,6 +26,25 @@ class QueueLogger:
     def flush(self):
         """This is needed for file-like objects."""
         pass
+
+
+class QtSignalStream(StringIO):
+    """
+    A simple stream object that redirects writes to a PyQt/PySide signal.
+    """
+    def __init__(self, signal):
+        super().__init__()
+        self.signal = signal
+
+    def write(self, text):
+        # Only emit if the text is not just whitespace, but preserve control characters
+        if text.strip():
+            self.signal.emit(text)
+    
+    def flush(self):
+        # This is needed for file-like objects
+        pass
+
 
 def pipeline_target_function(log_queue, input_dirs, model_dir, capture_rate, image_height_cm, img_depth, img_width):
     """
@@ -67,59 +90,80 @@ def pipeline_target_function(log_queue, input_dirs, model_dir, capture_rate, ima
 
 class PipelineManager(QObject):
     """
-    Manages the pipeline process and communicates with the GUI thread.
-    This object runs within a QThread.
+    Manages the MDPI pipeline execution in a separate thread.
     """
-    log_message = pyqtSignal(str)
-    finished = pyqtSignal()
-    
-    def __init__(self, *args, **kwargs):
+    finished = Signal()
+    log_message = Signal(str)
+    error_message = Signal(str)
+
+    def __init__(self, *args):
         super().__init__()
-        self.pipeline_process = None
-        self.queue = multiprocessing.Queue()
-        self.process_args = args
-        self.process_kwargs = kwargs
-        self._is_running = True
+        
+        # Unpack arguments for clarity
+        (
+            self.input_dirs,
+            self.model_dir,
+            self.capture_rate,
+            self.image_height_cm,
+            self.img_depth,
+            self.img_width
+        ) = args
+        
+        self.should_stop = False
 
     def run(self):
         """
-        Starts the pipeline process and monitors the output queue.
+        Executes the pipeline and emits signals for completion or logging.
         """
-        try:
-            self.pipeline_process = multiprocessing.Process(
-                target=pipeline_target_function,
-                args=(self.queue, *self.process_args),
-                kwargs=self.process_kwargs
-            )
-            self.pipeline_process.start()
+        # Create a stream to redirect stdout
+        stream = QtSignalStream(self.log_message)
 
-            # Monitor the queue for messages
-            while self._is_running and self.pipeline_process.is_alive():
-                try:
-                    message = self.queue.get(timeout=0.1)
-                    if message == "---DONE---" or message == "---ERROR---":
-                        break
-                    self.log_message.emit(message)
-                except Exception: # queue.Empty
-                    continue
+        try:
+            # Step 1: Validate inputs and setup
+            self.log_message.emit("[PIPELINE]: Validating inputs and setting up...")
             
-            # Ensure process is cleaned up if it finishes on its own
-            if self.pipeline_process.is_alive():
-                self.pipeline_process.join(timeout=1)
+            total = len(self.input_dirs)
+            for idx, input_dir in enumerate(self.input_dirs, start=1):
+                if self.should_stop:
+                    self.log_message.emit("Pipeline stop requested.")
+                    break
+
+                # Add a newline to create a visual separation.
+                message = f"\n[PIPELINE]: Starting {idx}/{total} → {input_dir}"
+                self.log_message.emit(message)
+
+                # We now combine validation and execution in the same loop.
+                # All stdout/stderr from both are redirected.
+                with contextlib.redirect_stdout(stream), contextlib.redirect_stderr(stream):
+                    config = validate_inputs_and_setup(
+                        input_dir,
+                        self.model_dir,
+                        self.capture_rate,
+                        self.image_height_cm,
+                        self.img_depth,
+                        self.img_width
+                    )
+                    
+                    if not config:
+                        # Log a warning or error if a config fails validation
+                        self.log_message.emit(f"[PIPELINE]: Skipping directory due to validation failure: {input_dir}")
+                        continue
+                    
+                    execute_pipeline(config, stop_check=lambda: self.should_stop)
+
+            if not self.should_stop:
+                self.log_message.emit("\n[PIPELINE]: All processing complete.")
+
+        except Exception as e:
+            # Get the full traceback
+            tb_str = traceback.format_exc()
+            detailed_error_msg = f"An error occurred: {e}\n{tb_str}"
+            self.error_message.emit(detailed_error_msg)
 
         finally:
-            self._is_running = False
             self.finished.emit()
-
+            
     def stop(self):
-        """Terminates the pipeline process."""
+        """Signals the pipeline to stop."""
         self.log_message.emit("Pipeline stop requested by user.")
-        self._is_running = False
-        if self.pipeline_process and self.pipeline_process.is_alive():
-            try:
-                self.pipeline_process.terminate()
-                self.pipeline_process.join(timeout=2) # Wait for graceful termination
-                if self.pipeline_process.is_alive():
-                    self.pipeline_process.kill() # Force kill if necessary
-            except Exception as e:
-                self.log_message.emit(f"Error during pipeline stop: {e}")
+        self.should_stop = True

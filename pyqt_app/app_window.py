@@ -1,10 +1,11 @@
 import os
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLineEdit, QFormLayout, QGroupBox,
     QTextEdit, QFileDialog, QLabel, QMessageBox
 )
-from PyQt6.QtCore import QThread, Qt
+from PySide6.QtCore import QThread, Qt, Signal
+from PySide6.QtGui import QTextCursor
 
 from run_pipeline import (
     CAPTURE_RATE,
@@ -27,6 +28,7 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1000, 800)
         self.pipeline_thread = None
         self.pipeline_manager = None
+        self.last_log_is_progress = False
 
         # --- Central Widget and Main Layout ---
         central_widget = QWidget()
@@ -128,8 +130,37 @@ class MainWindow(QMainWindow):
         self.stop_button.clicked.connect(self.stop_pipeline)
         self.stop_button.setEnabled(False)
         
+        self.stop_help_button = QPushButton("?")
+        self.stop_help_button.setFixedSize(20, 20)
+        self.stop_help_button.setStyleSheet("""
+            QPushButton {
+                background-color: #555;
+                color: white;
+                border: 1px solid #777;
+                border-radius: 10px; /* Make it circular */
+                font-weight: bold;
+                padding: 0;
+            }
+            QPushButton:hover {
+                background-color: #666;
+            }
+            QPushButton:pressed {
+                background-color: #4e4e4e;
+            }
+        """)
+        self.stop_help_button.clicked.connect(
+            lambda: self.show_help_dialog(
+                "Stop the Pipeline",
+                "The stop button can only queue up a 'stop' command. This command "
+                "is read and executed only between successive modules, and so the pipeline "
+                "will continue to run until it reaches the next module, at which time "
+                "it will stop."
+            )
+        )
+
         button_layout.addWidget(self.run_button)
         button_layout.addWidget(self.stop_button)
+        button_layout.addWidget(self.stop_help_button)
         button_layout.addStretch()
 
         # --- Input Paths Section ---
@@ -254,18 +285,22 @@ class MainWindow(QMainWindow):
         self.pipeline_thread.started.connect(self.pipeline_manager.run)
         self.pipeline_manager.finished.connect(self.pipeline_finished)
         self.pipeline_manager.log_message.connect(self.log_message)
+        self.pipeline_manager.error_message.connect(self.pipeline_error)
         
         self.pipeline_thread.start()
 
     def stop_pipeline(self):
         """Stops the running pipeline thread."""
         if self.pipeline_manager:
+            self.stop_button.setEnabled(False)
+            self.stop_button.setText("Stopping Pipeline...")
             self.pipeline_manager.stop()
         # The thread will be cleaned up in pipeline_finished
 
     def pipeline_finished(self):
         """Cleans up after the pipeline finishes."""
         self.run_button.setEnabled(True)
+        self.stop_button.setText("Stop Pipeline")
         self.stop_button.setEnabled(False)
         self.config_group.setEnabled(True)
         self.paths_group.setEnabled(True)
@@ -280,8 +315,36 @@ class MainWindow(QMainWindow):
         self.pipeline_finished()
 
     def log_message(self, message):
-        """Appends a message to the log display."""
-        self.log_display.append(message)
+        """Appends a message to the log display, handling carriage returns for progress bars."""
+        # Allow empty messages to create blank lines
+        if not message.strip() and message != "":
+            return
+
+        # TQDM progress bars use '|' and '%', and carriage returns for updates.
+        is_progress = '\r' in message or ('|' in message and '%' in message)
+        
+        cursor = self.log_display.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+
+        if is_progress:
+            if self.last_log_is_progress:
+                # If the last message was also progress, replace the line
+                cursor.select(QTextCursor.SelectionType.LineUnderCursor)
+                cursor.removeSelectedText()
+            # Insert the new progress text
+            cursor.insertText(message.strip())
+        else:
+            # It's a normal log line. If the last line was a progress bar,
+            # QTextEdit's `append` will correctly place this on a new line.
+            # We strip only carriage returns to preserve leading newlines for spacing.
+            stripped_message = message.strip('\r')
+            self.log_display.append(stripped_message)
+
+            # If this is the stop message, add a blank line for tqdm to overwrite
+            if "Pipeline stop requested" in stripped_message:
+                self.log_display.append("")
+
+        self.last_log_is_progress = is_progress
         self.log_display.verticalScrollBar().setValue(self.log_display.verticalScrollBar().maximum())
 
     def apply_stylesheet(self):

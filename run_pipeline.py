@@ -84,7 +84,7 @@ def validate_inputs_and_setup(
     )
 
 
-def execute_pipeline(run_config: SimpleNamespace):
+def execute_pipeline(run_config: SimpleNamespace, stop_check=None):
     """
     Executes the full MDPI pipeline.
     This function contains the core logic and is called by both the CLI and the Streamlit app.
@@ -92,14 +92,17 @@ def execute_pipeline(run_config: SimpleNamespace):
     # 1) Depth profiling
     print("[PIPELINE]: Running depth profiling...")
     depth_df = run_depth_profiling(run_config)
+    if stop_check and stop_check(): return
 
     # 2) Flatfielding
     print("[PIPELINE]: Running flatfielding...")
     run_flatfielding(run_config, depth_df)
+    if stop_check and stop_check(): return
 
     # 3) Object detection
     print("[PIPELINE]: Running object detection...")
     object_data_df = run_detection(run_config, depth_df)
+    if stop_check and stop_check(): return
 
     # 4) Classification
     print("[PIPELINE]: Running object classification...")
@@ -107,6 +110,7 @@ def execute_pipeline(run_config: SimpleNamespace):
         run_config=run_config,
         object_data_df=object_data_df,
     )
+    if stop_check and stop_check(): return
 
     # 5) Concentration calculation & plotting
     print("[PIPELINE]: Running plotter...")

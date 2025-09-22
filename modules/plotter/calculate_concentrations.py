@@ -187,7 +187,7 @@ def calculate_sizeclass_concentration_data(
     if 'sizeclass' not in data.columns:
         data['sizeclass'] = (
             data.groupby('label', group_keys=False)
-                .apply(lambda g: _assign_size_classes(g, pixel_size_um))
+                .apply(lambda g: _assign_size_classes(g, pixel_size_um), include_groups=False)
         )
 
     # Determine which size classes to use

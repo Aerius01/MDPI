@@ -1,5 +1,9 @@
-from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLineEdit, QPushButton, QLabel, QFormLayout
-from PyQt6.QtCore import pyqtSignal
+import os
+from PySide6.QtWidgets import (
+    QWidget, QHBoxLayout, QLineEdit, QPushButton, QLabel, QVBoxLayout, QFormLayout
+)
+from PySide6.QtCore import Signal
+from PySide6.QtGui import QIcon, QFont
 
 from pyqt_app.validation import get_detailed_validation_results
 from pyqt_app.widgets.collapsible_box import CollapsibleBox
@@ -7,7 +11,7 @@ from pyqt_app.widgets.collapsible_box import CollapsibleBox
 
 class InputPathWidget(QWidget):
     """A widget for a single input path, with validation and metadata feedback."""
-    validation_changed = pyqtSignal()
+    validation_changed = Signal()
 
     def __init__(self, path_text="", is_first=False):
         super().__init__()
