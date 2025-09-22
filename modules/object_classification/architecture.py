@@ -10,7 +10,7 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 """Handles CNN model construction with TensorFlow 1.x syntax."""
     
-def build_model(input_size: int, input_depth: int, nr_categories: int) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
+def _build_model(input_size: int, input_depth: int, nr_categories: int) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
     """Constructs the CNN architecture and returns placeholders."""
 
     # Define placeholders

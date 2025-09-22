@@ -4,6 +4,7 @@ output/
 
 # Ignore MDPI_R folder and all subfiles and directories
 MDPI_R/
+MDPI-Ashton/
 
 # Python
 __pycache__/

@@ -1,14 +1,25 @@
-from .inference_engine import InferenceEngine
-from .classification_data import ClassificationData
-from .processor import ClassificationProcessor
+import os
+from types import SimpleNamespace
+
+from .inference_engine import _InferenceEngine
+from .classification_data import _validate_arguments
+from .processor import _ClassificationProcessor
+import pandas as pd
 
 def run_classification(
-    data: ClassificationData,
-    inference_engine: InferenceEngine,
-    processor: ClassificationProcessor,
-):
+    run_config: SimpleNamespace,
+    object_data_df: pd.DataFrame,
+) -> pd.DataFrame:
     """Main classification function for processing a single image group."""
     print('[CLASSIFICATION]: Starting vignettes classification...')
+    
+    classification_data = _validate_arguments(
+        run_config,
+        object_data_df,
+    )
+
+    inference_engine = _InferenceEngine(classification_data)
+    processor = _ClassificationProcessor()
     
     inference_engine.setup_model()
 
@@ -17,14 +28,20 @@ def run_classification(
         results = inference_engine.process_location()
         
         # Save results to a .pkl file for use with the LabelChecker
-        processor.save_results(results, data.output_path, data.pkl_filename)
+        processor.save_results(results, classification_data.output_path, classification_data.pkl_filename)
 
-        # Assemble the classification dataframe and merge the detection dataframe into it, before saving as a .csv file
-        classification_df = processor.assemble_classification_dataframe(results, data.left_join_key)
-        merged_df = processor.left_join_dataframes(classification_df, data.detection_df, key=data.left_join_key)
-        processor.save_csv_results(merged_df, data.output_path, data.csv_filename)
+        # Assemble the classification dataframe and merge the detection dataframe into it
+        classification_df = processor.assemble_classification_dataframe(results, classification_data.left_join_key)
+        merged_df = processor.left_join_dataframes(classification_df, classification_data.detection_df, key=classification_data.left_join_key)
         
     finally:
         inference_engine.close()
+
+    output_csv_path = os.path.join(classification_data.output_path, classification_data.csv_filename)
+
+    # Add metadata to the dataframe and save
+    merged_df['recording_start_date'] = classification_data.recording_start_date
+    merged_df.to_csv(output_csv_path, index=False, sep=classification_data.csv_separator)
+    print(f"[CLASSIFICATION]: Final classified data with metadata saved to {output_csv_path}")
     
-    print('[CLASSIFICATION]: Vignettes classification completed successfully!') 
+    return merged_df 

@@ -5,7 +5,6 @@ from pathlib import Path
 import multiprocessing
 import queue
 import time
-import glob
 import html
 import streamlit.components.v1 as components
 
@@ -33,10 +32,14 @@ def main():
     if PROJECT_ROOT not in sys.path:
         sys.path.insert(0, PROJECT_ROOT)
 
+    MAX_LOG_LINES = 2000
+
     # Common
-    from modules.common.parser import _parse_path_metadata
+    from modules.common.parser import parse_file_metadata
+    from modules.common.validation import validate_input_directory
     from run_pipeline import (
         execute_pipeline,
+        validate_inputs_and_setup,
         CAPTURE_RATE,
         IMAGE_HEIGHT_CM,
         DEFAULT_IMG_DEPTH,
@@ -58,54 +61,25 @@ def main():
             pass
 
 
+    @st.cache_data
     def validate_raw_images_path(path):
-        """Check if the raw images path is valid."""
+        """
+        Check if the raw images path is valid by calling the centralized validator.
+        Returns a tuple: (validation_results, metadata, camera_format)
+        """
         results = []
-        if not path or not os.path.isdir(path):
-            results.append((False, "Path must be a valid directory."))
-            return results
-
-        results.append((True, "Path is a valid directory."))
-
         try:
-            _parse_path_metadata(Path(path))
-            results.append((True, "Directory structure is valid."))
-        except ValueError as e:
-            results.append((False, f"Directory structure error: {e}"))
+            metadata, _, camera_format = validate_input_directory(path)
 
-        image_extensions = ('*.tif', '*.tiff', '*.jpg', '*.jpeg', '*.png')
-        image_files = [f for ext in image_extensions for f in glob.glob(os.path.join(path, ext))]
-        if image_files:
-            results.append((True, f"Found {len(image_files)} image file(s)."))
-        else:
-            results.append((False, "No supported image files found (.tif, .jpg, .png)."))
-
-        # Match CSV files case-insensitively (e.g., .csv, .CSV, .CsV)
-        csv_files = glob.glob(os.path.join(path, '*.[Cc][Ss][Vv]'))
-        if len(csv_files) == 1:
+            # If validation succeeds, provide positive feedback for the UI
+            results.append((True, "Path is a valid directory."))
+            results.append((True, f"Found {metadata.get('total_replicates', 0)} image file(s)."))
             results.append((True, "Found one pressure sensor CSV file."))
-        else:
-            results.append((False, f"Expected 1 CSV file, but found {len(csv_files)}."))
-        return results
-
-    def validate_output_path(path):
-        """Check if the output path is valid."""
-        results = []
-        if not path or not path.strip():
-            return [(False, "Output path cannot be empty.")]
-
-        parent_dir = os.path.dirname(path) or '.'
-        if not os.path.isdir(parent_dir):
-            return [(False, f"Parent directory does not exist: {parent_dir}")]
-
-        if os.access(parent_dir, os.W_OK):
-            results.append((True, "Output directory is writable."))
-        else:
-            results.append((False, "Output directory is not writable."))
-
-        if os.path.exists(path) and not os.path.isdir(path):
-            results.append((False, "Path exists but is a file, not a directory."))
-        return results
+            return results, metadata, camera_format
+        except (ValueError, FileNotFoundError) as e:
+            # Provide a generic failure message and then the specific error
+            results.append((False, str(e)))
+            return results, None, None
 
     def display_validation(validation_results):
         """Render validation results with icons."""
@@ -113,23 +87,53 @@ def main():
             if is_valid:
                 st.markdown(f"<p style='color:green; margin-bottom:0.1rem; font-size:0.9rem;'>✔ {message}</p>", unsafe_allow_html=True)
             else:
-                st.markdown(f"<p style='color:red; margin-bottom:0.1rem; font-size:0.9rem;'>❌ {message}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='color:red; margin-bottom:0.9rem; font-size:0.9rem;'>❌ {message}</p>", unsafe_allow_html=True)
 
-    def display_path_parsing(path):
-        """Show how the raw image path will be parsed in a collapsible expander."""
-        with st.expander("Path Parsing Details", expanded=True):
+    def display_file_metadata(metadata, camera_format):
+        """Show parsed file metadata in a collapsible expander."""
+        with st.expander("File Metadata", expanded=True):
             try:
-                metadata = _parse_path_metadata(Path(path))
-                items = list(metadata.items())
+                # The metadata object is a copy, so we can modify it.
+                metadata = metadata.copy()
+
+                # Combine date and time
+                start_date = metadata.pop("recording_start_date")
+                start_time = metadata.pop("recording_start_time")
+                # Combine date and time into a single string.
+                # The time object from parser includes milliseconds, so format it.
+                metadata["recording_start"] = (
+                    f"{start_date} {start_time.strftime('%H:%M:%S.%f')[:-3]}"
+                )
+
+                # Combine width and height
+                width = metadata.pop("image_width_pixels")
+                height = metadata.pop("image_height_pixels")
+                metadata["image_shape"] = f"{width} x {height} pixels"
+
+                # Add camera format to metadata for display
+                metadata["camera_format"] = camera_format
+
+                # Define the desired order of keys
+                key_order = [
+                    "recording_start",
+                    "image_shape",
+                    "camera_format",
+                ]
+
+                items = [(key, metadata[key]) for key in key_order]
+
                 for i, (key, value) in enumerate(items):
                     # Add extra bottom margin to the last item for padding
-                    margin_bottom = '0.8rem' if i == len(items) - 1 else '0.1rem'
-                    st.markdown(f"<p style='margin-bottom:{margin_bottom}; font-size:0.9rem; margin-left: 1rem;'><strong>{key.replace('_', ' ').title()}:</strong> {value}</p>", unsafe_allow_html=True)
+                    margin_bottom = "0.8rem" if i == len(items) - 1 else "0.1rem"
+                    st.markdown(
+                        f"<p style='margin-bottom:{margin_bottom}; font-size:0.9rem; margin-left: 1rem;'><strong>{key.replace('_', ' ').title()}:</strong> {value}</p>",
+                        unsafe_allow_html=True,
+                    )
             except ValueError as e:
-                st.markdown(f"<p style='color:orange; margin-bottom:0.1rem; font-size:0.9rem;'>⚠️ Could not parse path: {e}</p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='color:orange; margin-bottom:0.1rem; font-size:0.9rem;'>⚠️ Could not parse file metadata: {e}</p>", unsafe_allow_html=True)
 
 
-    def pipeline_worker(log_queue: multiprocessing.Queue, input_dirs, output_root, model_dir, capture_rate, image_height_cm, img_depth, img_width):
+    def pipeline_worker(log_queue: multiprocessing.Queue, input_dirs, model_dir, capture_rate, image_height_cm, img_depth, img_width):
         """The target function for the pipeline process. Processes one or more input directories sequentially. No st calls here."""
         # Redirect stdout and stderr to the queue
         logger = QueueLogger(log_queue)
@@ -146,15 +150,15 @@ def main():
             total = len(input_dirs)
             for idx, input_dir in enumerate(input_dirs, start=1):
                 print(f"[PIPELINE]: Starting {idx}/{total} → {input_dir}")
-                execute_pipeline(
-                    input_dir,
-                    output_root,
-                    model_dir,
-                    capture_rate,
-                    image_height_cm,
-                    img_depth,
-                    img_width
+                run_config = validate_inputs_and_setup(
+                    input_dir=input_dir,
+                    model_dir=model_dir,
+                    capture_rate=capture_rate,
+                    image_height_cm=image_height_cm,
+                    img_depth=img_depth,
+                    img_width=img_width,
                 )
+                execute_pipeline(run_config)
                 print(f"[PIPELINE]: Finished {idx}/{total} → {input_dir}")
             log_queue.put("---DONE---")
             # Use original stdout for the final success message to avoid race condition
@@ -221,9 +225,6 @@ def main():
     st.subheader("Input Paths")
     # Dynamic list of input rows: each row has its own state key (e.g., 'raw_images_0')
 
-    if 'output_dir' not in st.session_state:
-        # Default to the project's output folder
-        st.session_state.output_dir = os.path.join(PROJECT_ROOT, "output")
 
     st.write("Raw Images Folders")
     if not _GUI_BROWSE_AVAILABLE:
@@ -269,37 +270,17 @@ def main():
                     st.button("Remove", on_click=remove_input_row, args=(row_key,), key=f"remove_{row_key}", use_container_width=True)
 
             current_value = st.session_state.get(row_key, "")
-            v = validate_raw_images_path(current_value)
+            v, metadata, camera_format = validate_raw_images_path(current_value)
             display_validation(v)
             is_valid_path = all(_v[0] for _v in v)
             if is_valid_path:
                 st.write("")
-                display_path_parsing(current_value)
+                display_file_metadata(metadata, camera_format)
                 st.write("")
             input_values.append(current_value)
             input_valid_flags.append(is_valid_path)
 
     all_inputs_valid = (len(input_values) > 0) and all(input_valid_flags)
-
-    st.write("Path to Output Folder")
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        st.button(
-            "Browse",
-            on_click=select_folder,
-            args=("output_dir",),
-            key="browse_output",
-            use_container_width=True,
-            disabled=not _GUI_BROWSE_AVAILABLE,
-        )
-    with col2:
-        st.text_input("Path to Output Folder", key="output_dir", label_visibility="collapsed")
-    if st.session_state.browse_error:
-        st.warning(st.session_state.browse_error)
-        st.session_state.browse_error = None
-    out_validation_results = validate_output_path(st.session_state.output_dir)
-    display_validation(out_validation_results)
-    out_valid = all(v[0] for v in out_validation_results)
 
     st.write("")  # Add vertical space
 
@@ -307,7 +288,6 @@ def main():
 
     # --- Run/Stop Buttons ---
     def start_pipeline():
-        output_dir = st.session_state.output_dir
         model_dir = os.path.join(PROJECT_ROOT, "model")
 
         # Build list of inputs from dynamic rows
@@ -319,15 +299,10 @@ def main():
 
         # Validate all inputs
         inputs_valid = (
-            len(input_dirs) > 0 and all(all(v[0] for v in validate_raw_images_path(p)) for p in input_dirs)
+            len(input_dirs) > 0 and all(all(v[0] for v in validate_raw_images_path(p)[0]) for p in input_dirs)
         )
-        out_valid = all(v[0] for v in validate_output_path(output_dir))
-
         if not inputs_valid:
             st.error("Please add at least one valid input folder. Fix validation errors above.")
-            return
-        if not out_valid:
-            st.error("Please fix the output folder validation errors before running the pipeline.")
             return
 
         log_queue = multiprocessing.Queue()
@@ -336,7 +311,7 @@ def main():
         image_width_dm = image_width_cm / 10.0
         process = multiprocessing.Process(
             target=pipeline_worker,
-            args=(log_queue, input_dirs, output_dir, model_dir, capture_rate, image_height_cm, image_depth_dm, image_width_dm)
+            args=(log_queue, input_dirs, model_dir, capture_rate, image_height_cm, image_depth_dm, image_width_dm)
         )
         process.daemon = True
         st.session_state.pipeline_process = process
@@ -360,7 +335,7 @@ def main():
 
 
     is_running = st.session_state.pipeline_process is not None and st.session_state.pipeline_process.is_alive()
-    validation_blocking = not (all_inputs_valid and out_valid)
+    validation_blocking = not all_inputs_valid
 
     b_col1, b_col2, _ = st.columns([1, 1, 5])
     with b_col1:
@@ -385,7 +360,9 @@ def main():
                     except queue.Empty:
                         # Fallback if worker fails to send final message
                         if log_entry == "---ERROR---":
-                            st.session_state.logs.append("[PIPELINE]: An unknown error occurred.")
+                            st.session_state.logs.append(
+                                "[PIPELINE]: An unknown error occurred."
+                            )
 
                     # Clean up state
                     st.session_state.pipeline_process = None
@@ -396,6 +373,10 @@ def main():
             except queue.Empty:
                 # No more messages for now
                 break
+
+    # Limit the number of log lines displayed to prevent performance degradation
+    if len(st.session_state.logs) > MAX_LOG_LINES:
+        st.session_state.logs = st.session_state.logs[-MAX_LOG_LINES:]
 
     log_string = "\n".join(st.session_state.logs)
     escaped_logs = html.escape(log_string)

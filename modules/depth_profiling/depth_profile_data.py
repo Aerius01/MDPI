@@ -1,16 +1,9 @@
 from dataclasses import dataclass
-import argparse
-from pathlib import Path
-import os
-from typing import Tuple, List
-import datetime
+from typing import Tuple
 import pandas as pd
-import cv2
+from types import SimpleNamespace
 
 from modules.common.constants import CONSTANTS
-from modules.common.parser import parse_metadata
-from .utils import find_single_csv_file
-from modules.common.fs_utils import ensure_dir
 
 # ─── M D P I · P A R A M E T E R S ──────────────────────────────────────────────────
 # The MDPI is placed horizontally as it moves through the water column,
@@ -39,12 +32,13 @@ PRESSURE_SENSOR_CSV_SEPARATOR = ';' # Separator to decode the pressure sensor CS
 @dataclass(frozen=True)
 class CsvParams:
     """Parameters for parsing CSV files."""
-    separator: str
+    read_separator: str
     header_row: int
     skipfooter: int
     extension: str
     time_column_name: str
     depth_column_name: str
+    write_separator: str
 
 @dataclass(frozen=True)
 class DepthParams:
@@ -54,26 +48,11 @@ class DepthParams:
     image_height_pixels: int
 
 @dataclass(frozen=True)
-class RunMetadata:
-    """Metadata for a specific run."""
-    raw_img_paths: List[str]
-    recording_start_date: datetime.date
-    recording_start_time: datetime.time
-    total_replicates: int
-    project: str
-    cycle: str
-    location: str
-
-@dataclass(frozen=True)
 class DepthProfilingData:
     """Dataclass for depth profiling data."""
-    run_metadata: RunMetadata
-    pressure_sensor_csv_path: str
-    output_path: str
-    capture_rate: float
+    run_config: SimpleNamespace
     csv_params: CsvParams
     depth_params: DepthParams
-    camera_format: str
 
 def read_csv_with_encodings(csv_path: str, **kwargs) -> pd.DataFrame:
     """Reads a CSV file by trying multiple common encodings."""
@@ -104,12 +83,13 @@ def detect_camera_format(df: pd.DataFrame) -> str:
 def create_camera_parameters(is_new_format: bool, image_height_pixels: int, image_height_cm: float) -> Tuple[CsvParams, DepthParams]:
     """Create appropriate CSV and depth parameters based on detected camera format."""
     csv_params = CsvParams(
-        separator=PRESSURE_SENSOR_CSV_SEPARATOR,
+        read_separator=PRESSURE_SENSOR_CSV_SEPARATOR,
         header_row=NEW_FORMAT_HEADER_ROW if is_new_format else OLD_FORMAT_HEADER_ROW,
         skipfooter=NEW_FORMAT_SKIPFOOTER if is_new_format else OLD_FORMAT_SKIPFOOTER,
         extension=CONSTANTS.CSV_EXTENSION,
         time_column_name=NEW_FORMAT_TIME_COLUMN_SEARCH if is_new_format else OLD_FORMAT_TIME_COLUMN_SEARCH,
-        depth_column_name=NEW_FORMAT_DEPTH_COLUMN_SEARCH if is_new_format else OLD_FORMAT_DEPTH_COLUMN_SEARCH
+        depth_column_name=NEW_FORMAT_DEPTH_COLUMN_SEARCH if is_new_format else OLD_FORMAT_DEPTH_COLUMN_SEARCH,
+        write_separator=CONSTANTS.CSV_SEPARATOR
     )
 
     depth_params = DepthParams(
@@ -120,68 +100,21 @@ def create_camera_parameters(is_new_format: bool, image_height_pixels: int, imag
     
     return csv_params, depth_params
 
-def process_arguments(
-    args: argparse.Namespace,
-    capture_rate_override: float = None,
-    image_height_cm_override: float = None
-) -> DepthProfilingData:
+def process_arguments(run_config: SimpleNamespace) -> DepthProfilingData:
     """
     Processes command line arguments and prepares data for depth profiling.
     Automatically detects camera format and configures all parameters accordingly.
     """
-    current_capture_rate = capture_rate_override if capture_rate_override is not None else CAPTURE_RATE
-    current_image_height_cm = image_height_cm_override if image_height_cm_override is not None else IMAGE_HEIGHT_CM
+    image_height_pixels = run_config.metadata["image_height_pixels"]
 
-    input_path = Path(args.input)
-    metadata_dict = parse_metadata(input_path)
-    run_metadata = RunMetadata(**metadata_dict)
-    
-    # Read the first image to determine the image height in pixels
-    if not run_metadata.raw_img_paths:
-        raise FileNotFoundError("No image files found in the input directory.")
-        
-    first_image_path = run_metadata.raw_img_paths[0]
-    image = cv2.imread(first_image_path)
-    if image is None:
-        raise ValueError(f"Could not read image file: {first_image_path}")
-    image_height_pixels = image.shape[0]
-
-    pressure_sensor_csv_path = find_single_csv_file(input_path)
-    
-    header_df = read_csv_with_encodings(
-        pressure_sensor_csv_path, 
-        sep=PRESSURE_SENSOR_CSV_SEPARATOR, 
-        header=0, 
-        engine='python', 
-        nrows=0
-    )
-    
-    camera_format = detect_camera_format(header_df)
-    print(f"[PROFILING]: Detected {camera_format} camera format.")
-    
     final_csv_params, final_depth_params = create_camera_parameters(
-        camera_format == "new", 
-        image_height_pixels,
-        current_image_height_cm
+        is_new_format=run_config.camera_format == "new",
+        image_height_cm=run_config.image_height_cm,
+        image_height_pixels=image_height_pixels
     )
 
-    output_dir = ensure_dir(args.output)
-    date_str = run_metadata.recording_start_date.strftime("%Y%m%d")
-    output_path = os.path.join(
-        output_dir, 
-        run_metadata.project, 
-        date_str, 
-        run_metadata.cycle, 
-        run_metadata.location
-    )
-    os.makedirs(output_path, exist_ok=True)
-    
     return DepthProfilingData(
-        run_metadata=run_metadata,
-        pressure_sensor_csv_path=pressure_sensor_csv_path,
-        output_path=output_path,
-        capture_rate=current_capture_rate,
+        run_config=run_config,
         csv_params=final_csv_params,
-        depth_params=final_depth_params,
-        camera_format=camera_format
+        depth_params=final_depth_params
     )

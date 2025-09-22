@@ -2,19 +2,13 @@
 
 ## Abstract
 
-The Object Detection module is the next step in the image processing pipeline, following the `flatfielding` module. Its primary function is to identify and isolate potential objects of interest (such as plankton) from the corrected images. It works by applying a series of image processing techniques to distinguish objects from the background. Once identified, each object is cropped from the source image into a smaller, individual image called a "vignette." The module also extracts a comprehensive set of morphological and intensity-based features for each detected object, which are crucial for the subsequent classification stage.
-
-## Prerequisites
-
-Before running this module, the raw images must be processed by the `flatfielding` module. This module requires the directory of flat-fielded images as its primary input.
+The Object Detection module follows the `flatfielding` module. Its primary function is to identify and isolate potential objects of interest (including plankton) from the corrected images. It works by applying a series of image morphology techniques to distinguish objects from the background. Once identified, each object is cropped from the source image into a smaller, individual image called a "vignette." The module then extracts a comprehensive set of morphological and intensity-based features for each vignette, which are crucial for the subsequent classification stage.
 
 ## How it Works
 
 The object detection process is executed through a series of sequential steps:
 
-1.  **Data Ingestion and Preparation:** The module starts by loading the flat-fielded images from the input directory. It also ingests the depth profiles CSV file output by the depth profiling module so that all data can be later aggregated into a single file. Metadata is parsed from the directory structure.
-
-2.  **Image Binarization:** Each image is converted into a binary (black and white) format using an inverted binary threshold. This step effectively separates the darker objects (potential plankton) from the lighter background.
+2.  **Image Binarization:** Each flatfielded image is converted into a binary (black and white) format using an inverted binary threshold. This step effectively separates the darker zones of the image from the lighter background.
 
 3.  **Object Labeling and Initial Filtering:** The binary images are then processed to identify contiguous regions of pixels, which are treated as potential objects. An initial size-based filtering is applied to discard regions that are either too small or too large to be of interest.
 
@@ -25,46 +19,7 @@ The object detection process is executed through a series of sequential steps:
 
 5.  **Vignette Generation:** For each valid object, a vignette is created by cropping a small rectangular area around the object's centroid from the original, non-binary image. The size of the crop is dynamically padded based on the object's major axis length to ensure the entire object is captured.
 
-6.  **Data Aggregation and Output:** The feature data for every detected object is compiled into a single pandas DataFrame. This DataFrame is then merged with the depth information and metadata. The final dataset is saved as a CSV file, and the generated vignettes are saved as individual image files.
-
-## How to Use
-
-The Object Detection module is run from the command line.
-
-### CLI Structure
-
-The basic command to execute the module is:
-
-```bash
-python3 -m modules.object_detection -i <input_directory> -d <depth_profiles_csv> -o <output_directory>
-```
-
-The `<input_directory>` should point to the directory containing the flat-fielded images, which typically follows the structure: `<...>/<project_name>/<YYYYMMDD>/<cycle>/<location>/flatfielded_images`.
-
-### Example
-
-This command processes flat-fielded images from the specified directory, using `profiles.csv` for depth data, and saves the output to the default `./output` directory.
-
-```bash
-python3 -m modules.object_detection -i <...>/Project-Example/20230424/day/E07-01/flatfielded_images -d ./profiles.csv
-```
-
-## Input Argument Formats
-
--   `-i, --input` (Required): Path to the directory containing the flat-fielded images. The directory structure must be in the format `<...>/<project_name>/<YYYYMMDD>/<cycle>/<location>/<any_directory_name>` for correct metadata parsing.
--   `-d, --depth-profiles` (Required): Path to the depth profiles CSV file. This file must contain `image_id` and `depth` columns.
--   `-o, --output` (Optional): The root directory for the output. Defaults to `./output` if not specified.
-
-## Module Outputs
-
-The module produces two main types of output:
-
--   **Vignettes:** Individual `.png` images of each detected object. These are saved in a structured directory: `<output_directory>/<project>/<date>/<cycle>/<location>/vignettes/`. The filenames are in the format `<original_image_name>_vignette_<region_id>.png`.
--   **Object Data CSV:** A single CSV file named `object_data.csv`, saved one level above the `vignettes` directory. This file contains the morphological and intensity features for every detected object, along with associated metadata and depth information.
-
-## Next Steps
-
-The vignettes and `object_data.csv` file generated by this module are the primary inputs for the final stage of the pipeline: the `object_classification` module.
+6.  **Data Aggregation and Output:** The feature data for every detected object is compiled into a single pandas DataFrame. This DataFrame is then merged with the depth information and metadata. The final dataset is held in memory and passed along to the classification module for further processing, whereas the generated vignettes are saved to disk as individual image files.
 
 ## Constants, Concerns, and Limitations
 
@@ -95,3 +50,6 @@ The object detection process is heavily controlled by a set of constants defined
 -   **Parameter Sensitivity:** The module's performance is highly sensitive to the constants used for filtering. The default values are optimized for a specific type of plankton and imaging setup. Different organisms, water turbidity, or camera settings will likely require significant tuning of these parameters to achieve optimal results.
 -   **No Model-Based Detection:** This module uses traditional computer vision techniques (thresholding, contour analysis) rather than a trained machine learning model. This makes it fast and interpretable but potentially less robust at handling variations in object appearance or complex backgrounds compared to model-based approaches like YOLO or Faster R-CNN.
 -   **Overlapping Objects:** The current implementation may struggle to correctly segment objects that are touching or overlapping in the original image, potentially treating them as a single, larger object.
+
+### Improvements
+- This module is the longest to execute, but as luck would have it, is also a perfect target for parallelization

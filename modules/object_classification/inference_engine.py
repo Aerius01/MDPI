@@ -4,7 +4,7 @@ from tqdm import tqdm
 from typing import List, Dict, Any
 
 # Custom modules located within the object_classification module
-from .architecture import build_model
+from .architecture import _build_model
 from .classification_data import ClassificationData
 
 # Custom modules located externally from the object_classification module
@@ -21,7 +21,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=all, 1=no INFO, 2=no INFO/WARN, 3=
 import tensorflow as tf
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
-class InferenceEngine:
+class _InferenceEngine:
     """Handles model inference and prediction pipeline."""
     
     def __init__(self, validated_args: ClassificationData):
@@ -39,7 +39,7 @@ class InferenceEngine:
         self.session = tf.compat.v1.Session()
         
         print('[CLASSIFICATION]: Constructing classification model...')
-        self.x_input, self.keep_prob, self.y_pred = build_model(self.validated_args.input_size, self.validated_args.input_depth, len(self.validated_args.categories))
+        self.x_input, self.keep_prob, self.y_pred = _build_model(self.validated_args.input_size, self.validated_args.input_depth, len(self.validated_args.categories))
         
         print('[CLASSIFICATION]: Restoring classification model...')
         self.session.run(tf.compat.v1.global_variables_initializer())
@@ -86,7 +86,6 @@ class InferenceEngine:
         _, diff = margin_sampling(predictions)
         _, ent = entropy(predictions)
         
-        probabilities = np.amax(predictions, axis=1).tolist()
         cat_predictions = np.argmax(predictions, axis=1).tolist()
         
         # Format output

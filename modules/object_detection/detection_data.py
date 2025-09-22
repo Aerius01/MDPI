@@ -1,10 +1,10 @@
-import argparse
 from pathlib import Path
 import pandas as pd
-from modules.common.fs_utils import ensure_dir
-from .utils import parse_flatfield_metadata_from_directory
+from modules.common.parser import _list_image_filenames
 import os
 from dataclasses import dataclass, fields
+from types import SimpleNamespace
+from modules.common.constants import CONSTANTS
 
 # ─── O B J E C T · D E T E C T I O N · P A R A M E T E R S ──────────────────────────
 # Thresholding values for image binarization
@@ -29,8 +29,6 @@ LARGE_OBJECT_PADDING: int = 40
 SMALL_OBJECT_THRESHOLD: int = 40
 MEDIUM_OBJECT_THRESHOLD: int = 50
 
-OUTPUT_CSV_SEPARATOR = ';'
-
 @dataclass
 class DetectionData:
     """
@@ -41,11 +39,23 @@ class DetectionData:
     depth_profiles_df: pd.DataFrame
     
     # Metadata attributes
-    project: str
-    recording_start_date: str
-    cycle: str
-    location: str
     flatfield_img_paths: list[str]
+    
+    # Detector configuration
+    threshold_value: int
+    threshold_max: int
+    min_object_size: int
+    max_object_size: int
+    max_eccentricity: float
+    max_mean_intensity: float
+    min_major_axis_length: float
+    max_min_intensity: float
+    small_object_threshold: int
+    medium_object_threshold: int
+    large_object_padding: int
+    small_object_padding: int
+    medium_object_padding: int
+    batch_size: int
 
     def __init__(self, **kwargs):
         """
@@ -55,52 +65,38 @@ class DetectionData:
             if field.name in kwargs:
                 setattr(self, field.name, kwargs[field.name])
 
-def validate_arguments(args: argparse.Namespace) -> DetectionData:
+def _validate_arguments(run_config: SimpleNamespace, depth_profiles_df: pd.DataFrame) -> DetectionData:
     """
     Processes and validates the command-line arguments.
     """
-    input_path = Path(args.input)
-    metadata = parse_flatfield_metadata_from_directory(input_path)
+    flatfield_dir = os.path.join(run_config.output_root, CONSTANTS.FLATFIELD_DIR_NAME)
+    input_path = Path(flatfield_dir)
+    
+    # Get flatfield-specific file paths
+    filenames = _list_image_filenames(input_path)
+    flatfield_img_paths = [str(input_path / filename) for filename in filenames]
+    run_config.metadata['flatfield_img_paths'] = flatfield_img_paths
 
-    output_dir = ensure_dir(args.output)
-    date_str = metadata["recording_start_date"].strftime("%Y%m%d")
-    output_path = os.path.join(output_dir, metadata["project"], date_str, metadata["cycle"], metadata["location"], "vignettes")
+    output_path = os.path.join(Path(run_config.output_root), CONSTANTS.VIGNETTES_DIR_NAME)
     os.makedirs(output_path, exist_ok=True)
-
-    depth_profiles_path = Path(args.depth_profiles)
-    if not depth_profiles_path.is_file():
-        raise FileNotFoundError(f"Depth profiles CSV file not found at: {depth_profiles_path}")
     
-    depth_profiles_df = pd.read_csv(depth_profiles_path, sep=None, engine='python')
-    required_columns = ['image_id', 'depth']
-    if not all(col in depth_profiles_df.columns for col in required_columns):
-        raise ValueError(f"Required columns ('image_id', 'depth') not found in depth profiles file: {depth_profiles_path}")
-    
-    depth_profiles_df = depth_profiles_df[['image_id', 'depth']]
-
     return DetectionData(
-        **metadata,
+        **run_config.metadata,
         input_path=input_path,
         output_path=output_path,
-        depth_profiles_df=depth_profiles_df
-    )
-
-def get_detector_config() -> dict:
-    """
-    Returns a dictionary with the object detection parameters.
-    """
-    return {
-        'threshold_value': THRESHOLD_VALUE,
-        'threshold_max': THRESHOLD_MAX,
-        'min_object_size': MIN_OBJECT_SIZE,
-        'max_object_size': MAX_OBJECT_SIZE,
-        'max_eccentricity': MAX_ECCENTRICITY,
-        'max_mean_intensity': MAX_MEAN_INTENSITY,
-        'min_major_axis_length': MIN_MAJOR_AXIS_LENGTH,
-        'max_min_intensity': MAX_MIN_INTENSITY,
-        'small_object_threshold': SMALL_OBJECT_THRESHOLD,
-        'medium_object_threshold': MEDIUM_OBJECT_THRESHOLD,
-        'large_object_padding': LARGE_OBJECT_PADDING,
-        'small_object_padding': SMALL_OBJECT_PADDING,
-        'medium_object_padding': MEDIUM_OBJECT_PADDING
-    } 
+        depth_profiles_df=depth_profiles_df[['image_id', 'depth']],
+        threshold_value=THRESHOLD_VALUE,
+        threshold_max=THRESHOLD_MAX,
+        min_object_size=MIN_OBJECT_SIZE,
+        max_object_size=MAX_OBJECT_SIZE,
+        max_eccentricity=MAX_ECCENTRICITY,
+        max_mean_intensity=MAX_MEAN_INTENSITY,
+        min_major_axis_length=MIN_MAJOR_AXIS_LENGTH,
+        max_min_intensity=MAX_MIN_INTENSITY,
+        small_object_threshold=SMALL_OBJECT_THRESHOLD,
+        medium_object_threshold=MEDIUM_OBJECT_THRESHOLD,
+        large_object_padding=LARGE_OBJECT_PADDING,
+        small_object_padding=SMALL_OBJECT_PADDING,
+        medium_object_padding=MEDIUM_OBJECT_PADDING,
+        batch_size=CONSTANTS.BATCH_SIZE
+    ) 

@@ -1,52 +1,28 @@
-import pandas as pd
 import matplotlib.pyplot as plt
 import os
-from typing import List
 
 from modules.plotter.plot_utils import setup_plot_aesthetics, configure_axes, save_plot
-from modules.plotter.constants import PLOTTING_CONSTANTS
+from modules.plotter.plotter_data import PlotterData
 from modules.plotter.plot_profile import PlotConfig
 
 
-PIXEL_SIZE_UM = 20.9  # micrometers per pixel
-LENGTH_X_MAX_MM = 3.0  # crop x-axis at 3 mm for consistency
-
-
-def _validate_columns(df: pd.DataFrame, required_columns: List[str]) -> List[str]:
-    return [col for col in required_columns if col not in df.columns]
-
-
-def plot_length_profile(data: pd.DataFrame, output_path: str, config: PlotConfig):
+def plot_length_profile(plotter_data: PlotterData, config: PlotConfig):
     """
     Generate and save length (mm) vs depth (m) scatter plots per taxonomic label.
 
     Expected columns in data:
-      - project, recording_start_date, cycle, label, depth, MajorAxisLength
-      - location (optional, used for file naming if present)
+      - recording_start_date, label, depth, MajorAxisLength
     """
-    if data.empty:
-        print("Input data is empty. No length plots will be generated.")
-        return
-
-    # Validate columns
-    required_columns = [
-        'project', 'recording_start_date', 'cycle', 'label', 'depth', 'MajorAxisLength'
-    ]
-    missing = _validate_columns(data, required_columns)
-    if missing:
-        print(f"Error: Input data is missing required columns for length plotting: {', '.join(missing)}")
-        return
+    data = plotter_data.object_data_df
+    output_path = plotter_data.output_root
 
     # Convert length from pixels to millimeters
     data = data.copy()
-    data['length_mm'] = (data['MajorAxisLength'] * PIXEL_SIZE_UM) / 1000.0
+    data['length_mm'] = (data['MajorAxisLength'] * plotter_data.pixel_size_um) / 1000.0
 
     # Metadata (assume single sample per file)
     first_row = data.iloc[0]
-    project = first_row['project']
     date = first_row['recording_start_date']
-    cycle = first_row['cycle']
-    location = first_row['location'] if 'location' in data.columns else None
 
     # Groups to plot
     for group, group_df in data.groupby('label'):
@@ -55,73 +31,25 @@ def plot_length_profile(data: pd.DataFrame, output_path: str, config: PlotConfig
 
         # Figure setup
         fig, ax = plt.subplots(figsize=config.figsize)
-        point_color = config.day_color if cycle == 'day' else config.night_color
+        point_color = config.day_color
 
         # Scatter plot (length on x, depth on y)
         ax.scatter(group_df['length_mm'], group_df['depth'], s=10, c=point_color, edgecolors=config.edge_color, linewidths=0.5)
 
         # Labels and title
-        title_parts = [str(x) for x in [project, group, date, cycle, location] if x]
+        title_parts = [str(x) for x in [group, date] if x]
         plot_title = '_'.join(title_parts)
         setup_plot_aesthetics(ax, plot_title, xlabel='Length (mm)', ylabel='Depth (m)')
 
         # Axes configuration
         # Use fixed max x for consistency across plots
-        max_length = LENGTH_X_MAX_MM
+        max_length = plotter_data.length_x_max_mm
         max_depth = group_df['depth'].max() if not group_df.empty else 0
         configure_axes(ax, max_depth, max_length, is_symmetric=False, depth_tick_step=1, conc_tick_step=0.5)
 
         # Save
-        base_prefix_parts = [str(x) for x in [project, group, date, cycle] if x]
+        base_prefix_parts = [str(x) for x in [group, date] if x]
         file_stem = f"{'_'.join(base_prefix_parts)}_length"
-        if location is not None:
-            file_stem = f"{file_stem}_{location}"
         file_name = f"{file_stem}.{config.file_format}"
-        sub_output_path = os.path.join(output_path, 'plots')
+        sub_output_path = os.path.join(output_path, 'plots', str(group))
         save_plot(fig, sub_output_path, file_name)
-
-
-
-if __name__ == '__main__':
-    # --- Configuration ---
-    FIGSIZE = PLOTTING_CONSTANTS.FIGSIZE
-    DAY_COLOR = PLOTTING_CONSTANTS.DAY_COLOR
-    NIGHT_COLOR = PLOTTING_CONSTANTS.NIGHT_COLOR
-    EDGE_COLOR = PLOTTING_CONSTANTS.EDGE_COLOR
-    ALIGN = PLOTTING_CONSTANTS.ALIGN
-    FILE_FORMAT = PLOTTING_CONSTANTS.FILE_FORMAT
-
-    config = PlotConfig(
-        figsize=FIGSIZE,
-        day_color=DAY_COLOR,
-        night_color=NIGHT_COLOR,
-        edge_color=EDGE_COLOR,
-        align=ALIGN,
-        file_format=FILE_FORMAT
-    )
-
-    # --- Argument Parsing ---
-    import argparse
-    parser = argparse.ArgumentParser(description='Generate length (mm) vs depth (m) plots from object data CSV.')
-    parser.add_argument('-i', '--csv_path', type=str, help='Path to the input object_data CSV file.', required=True)
-    args = parser.parse_args()
-
-    # --- Data Loading ---
-    try:
-        input_csv = pd.read_csv(args.csv_path, sep=';', engine='python')
-    except FileNotFoundError:
-        print(f"Error: Input file not found at {args.csv_path}")
-        exit(1)
-
-    # --- Validation ---
-    required_columns = ['project', 'recording_start_date', 'cycle', 'label', 'depth', 'MajorAxisLength']
-    missing_columns = [col for col in required_columns if col not in input_csv.columns]
-    if missing_columns:
-        print(f"Error: Input CSV file '{args.csv_path}' is missing required columns: {', '.join(missing_columns)}")
-        exit(1)
-
-    # --- Plotting ---
-    base_output_path = os.path.dirname(args.csv_path)
-    plot_length_profile(input_csv, base_output_path, config)
-    final_output_path = os.path.join(base_output_path, 'plots')
-    print(f"[PLOTTER]: Length plots for {args.csv_path} saved in {final_output_path}.")

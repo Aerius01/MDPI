@@ -89,4 +89,3 @@ def flatfield_images(data: FlatfieldingData):
             success_count += 1
     
     print(f"[FLATFIELDING]: {success_count} files saved to {data.output_path}")
-    print(f"[FLATFIELDING]: Processing completed successfully!")

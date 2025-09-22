@@ -96,6 +96,7 @@ def configure_axes(ax, max_depth, max_concentration, is_symmetric=False, depth_t
 def save_plot(fig, output_path, file_name):
     """Saves the plot to the specified path."""
     os.makedirs(output_path, exist_ok=True)
+    
     # Tight layout reduces label/title overlap and clipping
     fig.tight_layout()
     plt.savefig(os.path.join(output_path, f'{file_name}'), dpi=300, bbox_inches='tight')

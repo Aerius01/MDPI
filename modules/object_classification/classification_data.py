@@ -1,10 +1,12 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import os
 from pathlib import Path
 import pandas as pd
-from typing import Callable, Optional, List
+from typing import List
 from imutils import paths
 from datetime import date, time
+from types import SimpleNamespace
+from modules.common.constants import CONSTANTS
 
 # ─── O B J E C T · C L A S S I F I C A T I O N · P A R A M E T E R S ──────────────
 CLASSIFICATION_BATCH_SIZE: int = 32
@@ -13,29 +15,9 @@ CLASSIFICATION_INPUT_DEPTH: int = 1
 CLASSIFICATION_CATEGORIES: List[str] = ['cladocera', 'copepod', 'junk', 'rotifer'] # The available classification categories
 
 # Hardcoded constants
-DETECTED_OBJECTS_CSV_FILENAME = 'object_data.csv' # The filename of the detected objects CSV file, the output of the object detection module
+OUTPUT_CSV_FILENAME = 'object_data.csv' # The filename of the output objects CSV file
 OUTPUT_PKL_FILENAME = 'object_data.pkl' # The filename of the output classification pickle file (used for LabelChecker)
 LEFT_JOIN_KEY = 'FileName' # The column name used to join the detection and classification dataframes
-MODEL_CHECKPOINT_FILENAME = 'model.ckpt' # The filename of the model checkpoint file
-MODEL_CHECKPOINT_EXTENSIONS = ['meta', 'index', 'data-00000-of-00001'] # The extensions of the required model checkpoint files
-
-# The various metadata and CLI keys required by the classification module
-EXPECTED_METADATA_KEYS = [
-    "project",
-    "recording_start_date",
-    "cycle",
-    "location",
-    "total_replicates",
-    "recording_start_time",
-]
-EXPECTED_CLI_KEYS = [
-    "model", 
-    "input", 
-    "output", 
-    "batch_size", 
-    "input_size", 
-    "input_depth"
-]
 
 @dataclass
 class ClassificationData:
@@ -47,70 +29,13 @@ class ClassificationData:
     input_depth: int
     categories: list
     csv_filename: str
+    csv_separator: str
     detection_df: pd.DataFrame
     pkl_filename: str
     left_join_key: str
-    project: str
     recording_start_date: date
-    cycle: str
-    location: str
     total_replicates: int
     recording_start_time: time
-
-def _validate_model(model_path: str):
-    # Ensure the model directory exists
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Model directory does not exist: {model_path}")
-    
-    # Ensure the required model checkpoint files exist
-    model_checkpoint = os.path.join(model_path, MODEL_CHECKPOINT_FILENAME)
-    if not any(os.path.exists(f"{model_checkpoint}.{ext}") for ext in MODEL_CHECKPOINT_EXTENSIONS):
-        raise FileNotFoundError(f"Model checkpoint files not found in: {model_path}")
-    
-def _validate_input(vignettes_folder: str, sort_key: Optional[Callable] = None) -> list[str]:
-    # Ensure the vignettes folder exists
-    if not os.path.exists(vignettes_folder):
-        raise FileNotFoundError(f"Vignettes folder does not exist: {vignettes_folder}")
-    
-    try:
-        # Get a list of all vignette image paths and ensure it's not empty
-        vignette_paths = list(paths.list_images(vignettes_folder))
-        if not vignette_paths:
-            raise ValueError(f"No vignettes found in specified folder: {vignettes_folder}")
-        
-        # Sort the vignette paths if a sort key is provided
-        if sort_key:
-            vignette_paths = sorted(vignette_paths, key=sort_key)
-        else:
-            vignette_paths = sorted(vignette_paths)
-            
-        return vignette_paths
-    except Exception as e:
-        raise ValueError(f"Error reading vignettes from {vignettes_folder}: {str(e)}")
-    
-def _validate_output_path(output_path: str) -> Path:
-    try:
-        path = Path(output_path)
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-    except Exception as e:
-        raise ValueError(f"Cannot create output path {output_path}: {str(e)}") 
-    
-def _validate_detection_csv(csv_path: str) -> pd.DataFrame:
-    # Ensure the detection CSV file exists
-    if not os.path.exists(csv_path):
-        raise FileNotFoundError(f"Detection CSV file not found at {csv_path}. It must be created by the object detection module first.")
-    
-    try:
-        detection_df = pd.read_csv(csv_path, sep=None, engine='python')
-
-        # Ensure the detection CSV file is not empty    
-        if detection_df.empty:
-            raise ValueError(f"Detection CSV file is empty: {csv_path}")
-    except pd.errors.EmptyDataError:
-        raise ValueError(f"Detection CSV file is empty: {csv_path}") from None
-    
-    return detection_df
 
 def _get_vignette_sort_key(vignette_path: str) -> tuple[int, int]:
     """
@@ -135,47 +60,32 @@ def _get_vignette_sort_key(vignette_path: str) -> tuple[int, int]:
         
     return (replicate_num, object_id)
 
-def validate_arguments(**kwargs) -> ClassificationData:
-    # Check for required arguments
-    expected_keys = EXPECTED_METADATA_KEYS + EXPECTED_CLI_KEYS
-    missing_keys = [key for key in expected_keys if key not in kwargs]
-    if missing_keys:
-        raise ValueError(f"Missing required arguments: {', '.join(missing_keys)}")
-        
-    # Validate model directory
-    _validate_model(kwargs["model"])
-    
-    # Validate the input directory and get a list of vignette paths
-    print(f"[CLASSIFICATION]: Loading vignettes from {kwargs['input']}")
-    vignette_paths = _validate_input(kwargs["input"], sort_key=_get_vignette_sort_key)
+def _validate_arguments(
+    run_config: SimpleNamespace,
+    object_data_df: pd.DataFrame,
+) -> ClassificationData:
+    vignettes_dir = os.path.join(run_config.output_root, CONSTANTS.VIGNETTES_DIR_NAME)
+    vignette_paths = sorted(list(paths.list_images(vignettes_dir)), key=_get_vignette_sort_key)
     print(f"[CLASSIFICATION]: Found {len(vignette_paths)} vignettes")
 
-    # Validate and create output path
-    date_str = kwargs["recording_start_date"].strftime("%Y%m%d")
-    output_path = os.path.join(kwargs["output"], kwargs["project"], date_str, kwargs["cycle"], kwargs["location"])
-    output_path = Path(_validate_output_path(output_path))
-
-    # The detection CSV file must exist and be non-empty
-    csv_path = os.path.join(output_path, DETECTED_OBJECTS_CSV_FILENAME)
-    detection_df = _validate_detection_csv(csv_path)
+    if object_data_df.empty:
+        raise ValueError(f"Input object_data_df is empty")
 
     # Return the validated arguments    
     return ClassificationData(
         vignette_paths=vignette_paths,
-        output_path=output_path,
-        model_path=kwargs["model"],
-        batch_size=kwargs["batch_size"],
-        input_size=kwargs["input_size"],
-        input_depth=kwargs["input_depth"],
+        output_path=Path(run_config.output_root),
+        model_path=run_config.model_dir,
+        batch_size=CLASSIFICATION_BATCH_SIZE,
+        input_size=CLASSIFICATION_INPUT_SIZE,
+        input_depth=CLASSIFICATION_INPUT_DEPTH,
         categories=CLASSIFICATION_CATEGORIES,
-        csv_filename=DETECTED_OBJECTS_CSV_FILENAME,
-        detection_df=detection_df,
+        csv_filename=OUTPUT_CSV_FILENAME,
+        csv_separator=CONSTANTS.CSV_SEPARATOR,
+        detection_df=object_data_df,
         pkl_filename=OUTPUT_PKL_FILENAME,
         left_join_key=LEFT_JOIN_KEY,
-        project=kwargs["project"],
-        recording_start_date=kwargs["recording_start_date"],
-        cycle=kwargs["cycle"],
-        location=kwargs["location"],
-        total_replicates=kwargs["total_replicates"],
-        recording_start_time=kwargs["recording_start_time"],
+        recording_start_date=run_config.metadata["recording_start_date"],
+        total_replicates=run_config.metadata["total_replicates"],
+        recording_start_time=run_config.metadata["recording_start_time"],
     ) 

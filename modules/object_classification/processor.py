@@ -1,10 +1,9 @@
 from pathlib import Path
 from typing import Dict, Any
 import pickle
-import os
 import pandas as pd
 
-class ClassificationProcessor:
+class _ClassificationProcessor:
     def save_results(self, results: Dict[str, Any], output_path: Path, filename: str):
         """Save classification results to pickle file."""
         print('[CLASSIFICATION]: Creating pickle output...')
@@ -57,11 +56,3 @@ class ClassificationProcessor:
         # Perform a left join to add the classification results, updating rows in new_df with data from existing_df.
         updated_df = pd.merge(new_df, existing_df, on=key, how='left')
         return updated_df
-
-    def save_csv_results(self, merged_df: pd.DataFrame, output_path: str, filename: str):
-        """Save classification results to a CSV file, updating if file exists."""
-        print('[CLASSIFICATION]: Creating CSV output...')
-        
-        file_path = os.path.join(output_path, filename)
-        merged_df.to_csv(file_path, index=False, sep=';')
-        print(f"[CLASSIFICATION]: Updated existing CSV at {file_path}") 
