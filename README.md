@@ -2,7 +2,7 @@
 
 ## Overview
 
-This script (`run_pipeline.py`) serves as the main entry point for running the full MDPI (Mesoscale Plankton Imaging) processing pipeline. It automates the entire workflow from raw data to final concentration plots.
+This script (`run_pipeline.py`) serves as the main entry point for running the full MDPI (Plankton Imaging) processing pipeline. It automates the entire workflow from raw data to final concentration plots.
 
 ## Pipeline Steps
 

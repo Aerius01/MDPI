@@ -55,6 +55,9 @@ def parse_file_metadata(directory_path: Path) -> Dict:
     image_height_pixels = image.shape[0]
     image_width_pixels = image.shape[1]
 
+    if image_height_pixels <= 0 or image_width_pixels <= 0:
+        raise ValueError("Image dimensions must be greater than zero.")
+
     # Get the last image file in the list (filenames are sorted)
     image_filename = filenames[-1]
 
@@ -78,6 +81,9 @@ def parse_file_metadata(directory_path: Path) -> Dict:
         if isinstance(e, ValueError) and ("incorrect length" in str(e) or "enough parts" in str(e)):
             raise
         raise ValueError(f"Could not parse info from filename '{image_filename}'. Expected '..._YYYYMMDD_HHMMSSmmm_replicate.ext' format. Error: {e}")
+
+    if not all([recording_start_date, recording_start_time]):
+        raise ValueError("Could not determine recording start date or time.")
     
     return {
         "total_replicates": total_replicates,

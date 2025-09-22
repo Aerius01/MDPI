@@ -44,5 +44,4 @@ def run_classification(
     merged_df.to_csv(output_csv_path, index=False, sep=classification_data.csv_separator)
     print(f"[CLASSIFICATION]: Final classified data with metadata saved to {output_csv_path}")
     
-    print('[CLASSIFICATION]: Vignettes classification completed successfully!')
     return merged_df 

@@ -16,23 +16,23 @@ Example:
 """
 
 import argparse
-import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 # Common
 from modules.common.cli_utils import prompt_for_mdpi_configuration
-from modules.common.parser import parse_file_metadata, find_single_csv_file
+from modules.common.validation import (
+    validate_input_directory,
+    validate_model,
+    setup_output_directory,
+)
 
 
 # Modules
 from modules.depth_profiling.depth_profile_data import (
     CAPTURE_RATE,
     IMAGE_HEIGHT_CM,
-    read_csv_with_encodings,
-    detect_camera_format,
-    PRESSURE_SENSOR_CSV_SEPARATOR,
 )
 from modules.depth_profiling.run import run_depth_profiling
 from modules.flatfielding.run import run_flatfielding
@@ -42,24 +42,13 @@ from modules.plotter.run import run_plotter
 
 # Global configuration defaults (not in CONSTANTS)
 # Volume in L == dm^3
-DEFAULT_IMG_DEPTH = 1.00 # in decimeters
-DEFAULT_IMG_WIDTH = IMAGE_HEIGHT_CM / 10.0 # in decimeters, equal to IMAGE_HEIGHT_CM
-MODEL_CHECKPOINT_FILENAME = 'model.ckpt' # The filename of the model checkpoint file
-MODEL_CHECKPOINT_EXTENSIONS = ['meta', 'index', 'data-00000-of-00001'] # The extensions of the required model checkpoint files
+DEFAULT_IMG_DEPTH = 1.00  # in decimeters
+DEFAULT_IMG_WIDTH = IMAGE_HEIGHT_CM / 10.0  # in decimeters, equal to IMAGE_HEIGHT_CM
 
 
-def _validate_model(model_path: str):
-    # Ensure the model directory exists
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Model directory does not exist: {model_path}")
-    
-    # Ensure the required model checkpoint files exist
-    model_checkpoint = os.path.join(model_path, MODEL_CHECKPOINT_FILENAME)
-    if not any(os.path.exists(f"{model_checkpoint}.{ext}") for ext in MODEL_CHECKPOINT_EXTENSIONS):
-        raise FileNotFoundError(f"Model checkpoint files not found in: {model_path}")
-
-
-def validate_inputs_and_setup(input_dir, model_dir, capture_rate, image_height_cm, img_depth, img_width):
+def validate_inputs_and_setup(
+    input_dir, model_dir, capture_rate, image_height_cm, img_depth, img_width
+):
     """
     Validates all pipeline inputs and sets up necessary configurations.
     """
@@ -67,36 +56,18 @@ def validate_inputs_and_setup(input_dir, model_dir, capture_rate, image_height_c
     input_dir_path = Path(input_dir).resolve()
     model_dir_path = Path(model_dir).resolve()
 
-    # Set and validate output directory
-    output_root = os.path.join(input_dir_path, 'output')
-    output_root_path = Path(output_root).resolve()
-
     # Create and validate output directory
-    try:
-        os.makedirs(output_root_path, exist_ok=True)
-        if not os.access(output_root_path, os.W_OK):
-            raise PermissionError(f"Output directory '{output_root_path}' is not writable.")
-    except Exception as e:
-        raise OSError(f"Error creating or validating output directory '{output_root_path}': {e}") from e
+    output_root_path = setup_output_directory(str(input_dir_path))
 
     # Centralized metadata parsing
     print("[PIPELINE]: Parsing metadata from input directory...")
-    metadata = parse_file_metadata(input_dir_path)
-
-    # Find the pressure sensor CSV file
-    pressure_sensor_csv_path = find_single_csv_file(input_dir_path)
-    header_df = read_csv_with_encodings(
-        pressure_sensor_csv_path,
-        sep=PRESSURE_SENSOR_CSV_SEPARATOR,
-        header=0,
-        engine='python',
-        nrows=0
+    metadata, pressure_sensor_csv_path, camera_format = validate_input_directory(
+        str(input_dir_path)
     )
-    camera_format = detect_camera_format(header_df)
     print(f"[PIPELINE]: Detected {camera_format} camera format.")
 
     # Validate model directory
-    _validate_model(str(model_dir_path))
+    validate_model(str(model_dir_path))
 
     # Create and return run_config with resolved paths and new data
     return SimpleNamespace(

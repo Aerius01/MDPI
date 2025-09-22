@@ -61,7 +61,6 @@ def _detect_objects(
 
     combined_df = _create_dataframe(all_region_data, data.depth_profiles_df)
     
-    print(f"[DETECTION]: Processing completed successfully!")
     print(f"[DETECTION]: {output_count} vignettes saved to {data.output_path}")
 
     return combined_df
