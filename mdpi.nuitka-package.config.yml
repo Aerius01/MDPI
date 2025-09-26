@@ -1,0 +1,25 @@
+# This configuration file provides custom build instructions for Nuitka,
+# ensuring that packages with complex dependencies are handled correctly.
+
+# See Nuitka documentation for more details:
+# https://nuitka.net/user-documentation/nuitka-package-config.html
+
+---
+# yamllint disable rule:line-length
+# yamllint disable rule:indentation
+# yamllint disable rule:comments-indentation
+# too many spelling things, spell-checker: disable
+
+# General application configuration
+# This section applies settings to the main entry point of the application.
+
+# Application-specific resources
+- module-name: 'main'
+  data-files:
+    dirs:
+      - 'pyqt_app/styles'
+      - 'model'
+
+# cv2 and dependent DLLs are now included via command-line flags in build.sh
+
+

@@ -15,11 +15,11 @@ def plot_length_profile(plotter_data: PlotterData, config: PlotConfig):
     Expected columns in data:
       - recording_start_date, label, depth, MajorAxisLength
     """
-    data = plotter_data.object_data_df
+    # Ensure we operate on an independent DataFrame to avoid chained assignment issues
+    data = plotter_data.object_data_df.copy(deep=True)
     output_path = plotter_data.output_root
 
     # Convert length from pixels to millimeters
-    data = data.copy()
     data['length_mm'] = (data['MajorAxisLength'] * plotter_data.pixel_size_um) / 1000.0
 
     # Metadata (assume single sample per file)

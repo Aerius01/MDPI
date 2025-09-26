@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QPushButton, QLineEdit, QFormLayout, QGroupBox,
     QTextEdit, QFileDialog, QLabel, QMessageBox
 )
-from PySide6.QtCore import QThread, Qt, Signal
+from PySide6.QtCore import QThread, Qt, Signal, Slot
 from PySide6.QtGui import QTextCursor
 
 from run_pipeline import (
@@ -282,10 +282,12 @@ class MainWindow(QMainWindow):
         self.pipeline_manager = PipelineManager(*args)
 
         self.pipeline_manager.moveToThread(self.pipeline_thread)
-        self.pipeline_thread.started.connect(self.pipeline_manager.run)
-        self.pipeline_manager.finished.connect(self.pipeline_finished)
-        self.pipeline_manager.log_message.connect(self.log_message)
-        self.pipeline_manager.error_message.connect(self.pipeline_error)
+        # Use QueuedConnection explicitly to avoid descriptor issues in frozen builds
+        from PySide6.QtCore import Qt as _Qt
+        self.pipeline_thread.started.connect(self.pipeline_manager.run, _Qt.ConnectionType.QueuedConnection)
+        self.pipeline_manager.finished.connect(self.pipeline_finished, _Qt.ConnectionType.QueuedConnection)
+        self.pipeline_manager.log_message.connect(lambda m: self.log_message(m), _Qt.ConnectionType.QueuedConnection)
+        self.pipeline_manager.error_message.connect(lambda m: self.pipeline_error(m), _Qt.ConnectionType.QueuedConnection)
         
         self.pipeline_thread.start()
 
@@ -297,6 +299,7 @@ class MainWindow(QMainWindow):
             self.pipeline_manager.stop()
         # The thread will be cleaned up in pipeline_finished
 
+    @Slot()
     def pipeline_finished(self):
         """Cleans up after the pipeline finishes."""
         self.run_button.setEnabled(True)
@@ -310,10 +313,12 @@ class MainWindow(QMainWindow):
         self.pipeline_thread = None
         self.pipeline_manager = None
 
+    @Slot(str)
     def pipeline_error(self, message):
         self.log_message(f"[ERROR]: {message}")
         self.pipeline_finished()
 
+    @Slot(str)
     def log_message(self, message):
         """Appends a message to the log display, handling carriage returns for progress bars."""
         # Allow empty messages to create blank lines

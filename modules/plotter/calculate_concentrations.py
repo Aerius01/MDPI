@@ -116,14 +116,16 @@ def get_concentration_data(
 
 def calculate_concentration_data(plotter_data: PlotterData) -> pd.DataFrame:
     """Main function for orchestrating concentration data calculation."""
-    data = plotter_data.object_data_df
+    # Work on a deep copy to avoid chained assignment warnings
+    data = plotter_data.object_data_df.copy(deep=True)
     
     # Create sequence of bins - equivalent to seq(bin_size, max_depth, bin_size)
     depth_bins = np.arange(plotter_data.bin_size, plotter_data.max_depth + plotter_data.bin_size, plotter_data.bin_size)
         
     # Assign measurements to depth bins
     # Equivalent to sapply(data$depth, DepthBin, depth_bins)
-    data['depth_bin'] = data['depth'].apply(lambda x: depth_bins[depth_bin(x, depth_bins)])
+    # Single-step assignment using .loc to avoid chained assignment semantics
+    data.loc[:, 'depth_bin'] = data['depth'].apply(lambda x: depth_bins[depth_bin(x, depth_bins)])
     
     # Calculate concentrations per group and bin
     concentration_data = get_concentration_data(
@@ -175,17 +177,17 @@ def calculate_sizeclass_concentration_data(
     Calculate concentration data aggregated by size classes (1..3) within each taxonomic label.
     Mirrors MDPI-Ashton/tools/io/GetConcentrationDataSizeClass.R using Python.
     """
-    data = object_data_df
+    # Work on a deep copy to avoid chained assignment warnings
+    data = object_data_df.copy(deep=True)
     # Create sequence of bins - equivalent to seq(bin_size, max_depth, bin_size)
     depth_bins = np.arange(bin_size, max_depth + bin_size, bin_size)
 
     # Assign measurements to depth bins
-    data = data.copy()
-    data['depth_bin'] = data['depth'].apply(lambda x: depth_bins[depth_bin(x, depth_bins)])
+    data.loc[:, 'depth_bin'] = data['depth'].apply(lambda x: depth_bins[depth_bin(x, depth_bins)])
 
     # Ensure sizeclass exists; if not, derive within each label group using quantiles
     if 'sizeclass' not in data.columns:
-        data['sizeclass'] = (
+        data.loc[:, 'sizeclass'] = (
             data.groupby('label', group_keys=False)
                 .apply(lambda g: _assign_size_classes(g, pixel_size_um), include_groups=False)
         )

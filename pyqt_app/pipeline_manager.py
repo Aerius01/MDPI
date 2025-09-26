@@ -1,6 +1,6 @@
 import sys
 import multiprocessing
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Slot
 import contextlib
 from io import StringIO
 
@@ -37,9 +37,12 @@ class QtSignalStream(StringIO):
         self.signal = signal
 
     def write(self, text):
-        # Only emit if the text is not just whitespace, but preserve control characters
-        if text.strip():
-            self.signal.emit(text)
+        # Emit lines as they come, preserving progress updates with carriage returns
+        if text is None:
+            return
+        if text == "":
+            return
+        self.signal.emit(text)
     
     def flush(self):
         # This is needed for file-like objects
@@ -111,51 +114,77 @@ class PipelineManager(QObject):
         
         self.should_stop = False
 
+    @Slot()
     def run(self):
         """
-        Executes the pipeline and emits signals for completion or logging.
+        Executes the pipeline in a separate process and streams logs back to the GUI.
+        This avoids buffering and GIL issues that can delay output in frozen apps.
         """
-        # Create a stream to redirect stdout
-        stream = QtSignalStream(self.log_message)
-
         try:
-            # Step 1: Validate inputs and setup
             self.log_message.emit("[PIPELINE]: Validating inputs and setting up...")
-            
+
             total = len(self.input_dirs)
             for idx, input_dir in enumerate(self.input_dirs, start=1):
                 if self.should_stop:
                     self.log_message.emit("Pipeline stop requested.")
                     break
 
-                # Add a newline to create a visual separation.
-                message = f"\n[PIPELINE]: Starting {idx}/{total} → {input_dir}"
-                self.log_message.emit(message)
+                self.log_message.emit(f"\n[PIPELINE]: Starting {idx}/{total} → {input_dir}")
 
-                # We now combine validation and execution in the same loop.
-                # All stdout/stderr from both are redirected.
-                with contextlib.redirect_stdout(stream), contextlib.redirect_stderr(stream):
-                    config = validate_inputs_and_setup(
-                        input_dir,
+                log_queue = multiprocessing.Queue()
+                process = multiprocessing.Process(
+                    target=pipeline_target_function,
+                    args=(
+                        log_queue,
+                        [input_dir],
                         self.model_dir,
                         self.capture_rate,
                         self.image_height_cm,
                         self.img_depth,
-                        self.img_width
-                    )
-                    
-                    if not config:
-                        # Log a warning or error if a config fails validation
-                        self.log_message.emit(f"[PIPELINE]: Skipping directory due to validation failure: {input_dir}")
+                        self.img_width,
+                    ),
+                )
+                process.start()
+
+                saw_error = False
+                error_lines = []
+
+                while True:
+                    if self.should_stop and process.is_alive():
+                        self.log_message.emit("Pipeline stop requested by user (terminating worker).")
+                        process.terminate()
+                        process.join()
+                        break
+
+                    try:
+                        message = log_queue.get(timeout=0.1)
+                    except Exception:
+                        if not process.is_alive():
+                            break
                         continue
-                    
-                    execute_pipeline(config, stop_check=lambda: self.should_stop)
+
+                    if message == "---DONE---":
+                        break
+                    if message == "---ERROR---":
+                        saw_error = True
+                        continue
+                    if saw_error:
+                        error_lines.append(message)
+                        continue
+
+                    self.log_message.emit(message)
+
+                process.join()
+
+                if saw_error and error_lines:
+                    self.error_message.emit("\n".join(error_lines))
+                    if self.should_stop:
+                        break
 
             if not self.should_stop:
                 self.log_message.emit("\n[PIPELINE]: All processing complete.")
 
         except Exception as e:
-            # Get the full traceback
             tb_str = traceback.format_exc()
             detailed_error_msg = f"An error occurred: {e}\n{tb_str}"
             self.error_message.emit(detailed_error_msg)
@@ -163,6 +192,7 @@ class PipelineManager(QObject):
         finally:
             self.finished.emit()
             
+    @Slot()
     def stop(self):
         """Signals the pipeline to stop."""
         self.log_message.emit("Pipeline stop requested by user.")

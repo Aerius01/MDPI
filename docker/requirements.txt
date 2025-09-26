@@ -1,0 +1,26 @@
+# Core runtime packages (Python 3.11 compatible)
+# Keep versions pinned for reproducibility
+
+# Numerical / data
+numpy==1.26.4
+pandas==2.2.2
+scikit-image==0.24.0
+scikit-learn==1.5.1
+
+# Imaging / CV
+opencv-python-headless==4.10.0.84
+Pillow==10.4.0
+
+# Plotting (headless backend already set in code)
+matplotlib==3.9.2
+
+# ML
+# Uses tf.compat.v1 in code; TF 2.15 is last manylinux2014 wheel supporting Python 3.11
+tensorflow==2.15.1
+
+# Utils
+tqdm==4.66.5
+imutils==0.5.4
+
+# Streamlit is optional for this CLI runner (omit to slim image)
+# streamlit==1.39.0

@@ -1,0 +1,15 @@
+name: mdpi-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - tqdm
+  - imutils
+  - numpy
+  - opencv
+  - pandas
+  - scikit-image
+  - tensorflow
+  - scikit-learn
+  - pip

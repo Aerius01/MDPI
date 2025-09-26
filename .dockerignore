@@ -1,0 +1,32 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.so
+
+.git
+.gitignore
+
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Build artifacts
+build/
+*.egg-info/
+*.dist-info/
+.nuitka-cache/
+
+# Large datasets and generated outputs
+profiles/**/output/
+MDPI_R/output_data/
+MDPI_R/plot_data/
+MDPI_R/data/
+
+# Include model/ in image to provide default checkpoints
+# model/
+
+# Misc not needed in image
+nuitka-crash-report.xml
+start_streamlit.sh
+environment_from_history.yml
