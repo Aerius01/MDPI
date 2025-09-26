@@ -1,0 +1,46 @@
+{
+    "name": "mdpi-electron",
+    "version": "0.1.0",
+    "description": "Electron GUI for MDPI pipeline that runs Dockerized backend",
+    "main": "main.js",
+    "type": "module",
+    "scripts": {
+        "start": "electron .",
+        "dev": "electron .",
+        "build": "electron-builder -c.extraMetadata.main=main.js",
+        "pack": "electron-builder --dir"
+    },
+    "dependencies": {
+        "electron-updater": "^6.3.9"
+    },
+    "devDependencies": {
+        "electron": "^31.3.0",
+        "electron-builder": "^24.13.3"
+    },
+    "build": {
+        "appId": "com.mdpi.electron",
+        "productName": "MDPI",
+        "files": [
+            "**/*"
+        ],
+        "extraResources": [],
+        "mac": {
+            "target": [
+                "dmg"
+            ],
+            "category": "public.app-category.developer-tools"
+        },
+        "win": {
+            "target": [
+                "nsis"
+            ],
+            "publisherName": "MDPI"
+        },
+        "linux": {
+            "target": [
+                "AppImage"
+            ],
+            "category": "Utility"
+        }
+    }
+}

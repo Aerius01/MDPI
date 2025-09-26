@@ -8,7 +8,8 @@ LABEL org.opencontainers.image.licenses="MIT"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    MDPI_MODEL_DIR=/app/model
+    MDPI_MODEL_DIR=/app/model \
+    MDPI_INPUT_DIR=/app/input
 
 WORKDIR /app
 
@@ -24,4 +25,5 @@ COPY --chown=$MAMBA_USER:$MAMBA_USER . /app
 # Run as non-root user to preserve host file ownership on bind mounts
 USER $MAMBA_USER
 
-ENTRYPOINT ["micromamba", "run", "-n", "base", "python", "run_pipeline.py"]
+# Run streamlined entrypoint that mirrors Streamlit defaults
+ENTRYPOINT ["micromamba", "run", "-n", "base", "python", "docker/entrypoint.py"]
