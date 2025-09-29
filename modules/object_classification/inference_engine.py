@@ -1,6 +1,5 @@
 import os
 import numpy as np
-from tqdm import tqdm
 from typing import List, Dict, Any
 
 # Custom modules located within the object_classification module
@@ -17,6 +16,12 @@ from tools.metrics.margin_sampling import margin_sampling
 
 # Suppress TensorFlow logging messages - MUST be set before importing tensorflow
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=all, 1=no INFO, 2=no INFO/WARN, 3=no INFO/WARN/ERROR
+
+try:
+    from absl import logging
+    logging.set_verbosity(logging.ERROR)
+except ImportError:
+    pass
 
 import tensorflow as tf
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
@@ -62,10 +67,12 @@ class _InferenceEngine:
         """Run batch predictions on preprocessed images."""
         predictions = np.array([], dtype=np.float32).reshape(0, len(self.validated_args.categories))
         epoch_step = 0
+        num_batches = int(np.ceil(num_images / self.validated_args.batch_size))
         
         print('[CLASSIFICATION]: Starting vignettes classification...')
-        print(f"[CLASSIFICATION]: Processing {num_images} images in {int(np.ceil(num_images / self.validated_args.batch_size))} batches")
-        for i in tqdm(range(int(np.ceil(num_images / self.validated_args.batch_size))), desc='[CLASSIFICATION]'):
+        print(f"[CLASSIFICATION]: Processing {num_images} images in {num_batches} batches")
+        
+        for i in range(num_batches):
             batch_x = batch_generator(
                 images=images, images_mean=image_mean, nr_images=num_images,
                 batch_size=self.validated_args.batch_size, index=epoch_step
@@ -74,7 +81,16 @@ class _InferenceEngine:
             
             pred = self.session.run(self.y_pred, feed_dict={self.x_input: batch_x, self.keep_prob: 1})
             predictions = np.concatenate((predictions, pred), axis=0)
+
+            progress = min(epoch_step, num_images)
+            print(f"[PROGRESS] {progress}/{num_images}")
         
+        # Hardcode a final, completed progress bar to bypass async issues
+        bar = f"[{'#' * 40}]"
+        total_str = str(num_images)
+        progress_bar = f"[CLASSIFICATION]: {bar} 100% | {total_str}/{total_str}"
+        print(progress_bar, flush=True)
+
         return predictions
     
     def _post_process_predictions(self, predictions: np.ndarray, vignette_paths: List[str], angles: List[float]) -> Dict[str, Any]:

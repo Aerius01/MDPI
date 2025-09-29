@@ -1,0 +1,343 @@
+:root {
+    --bg: #0b0f14;
+    --panel: #121821;
+    --text: #e8eef5;
+    --muted: #9fb3c8;
+    --accent: #3b82f6;
+    --accent-2: #22c55e;
+    --border: #223042;
+    --red: #ef4444;
+    --green: #22c55e;
+    --orange: #f97316;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable both-edges;
+}
+
+.container {
+    max-width: 1100px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+@media (max-width: 1099px) {
+    body {
+        overflow-x: hidden;
+    }
+}
+
+h2 {
+    margin: 0 0 20px 0;
+    font-weight: 600;
+    font-size: 24px;
+}
+
+h3 {
+    margin: 0 0 16px 0;
+    font-weight: 600;
+    font-size: 18px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+}
+
+.card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+#config-card {
+    padding-bottom: 12px;
+}
+
+.card.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.form-group {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    align-items: center;
+    gap: 8px;
+    /* match space between input and tooltip */
+    margin-bottom: 10px;
+}
+
+label {
+    color: var(--muted);
+    justify-self: start;
+    text-align: left;
+}
+
+input[type=text],
+input[type=number] {
+    width: 100%;
+    padding: 10px 12px;
+    background: #0c121a;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+/* Placeholder styling for input fields */
+input[type=text]::placeholder {
+    color: var(--muted);
+    font-style: italic;
+    font-family: inherit;
+    opacity: 1;
+    /* Ensure consistent visibility across engines */
+}
+
+button {
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    background: #0d1520;
+    color: var(--text);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+button:hover:not(:disabled) {
+    border-color: #2b3b52;
+    background: #0f1a28;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: #2563eb;
+    border-color: #2563eb;
+}
+
+.btn-danger {
+    background: #4f1b29;
+    border-color: #7f1d1d;
+}
+
+.btn-danger:hover:not(:disabled) {
+    background: #7f1d1d;
+    border-color: #b91c1c;
+}
+
+
+.input-row {
+    display: grid;
+    grid-template-columns: 1fr 100px 100px;
+    gap: 10px;
+    align-items: flex-end;
+    margin-bottom: 16px;
+}
+
+.input-row-container {
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+.validation-result p {
+    margin: 4px 0 0 0;
+    font-size: 13px;
+}
+
+.validation-result .valid {
+    color: var(--green);
+}
+
+.validation-result .invalid {
+    color: var(--red);
+}
+
+.metadata-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    font-size: 13px;
+    margin-top: 10px;
+}
+
+.metadata-grid strong {
+    color: var(--muted);
+    font-weight: 500;
+}
+
+#log-container {
+    height: 420px;
+    background: #070b10;
+    color: #cfe2ff;
+    padding: 12px;
+    overflow: auto;
+    overflow-x: hidden;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    white-space: pre-wrap;
+    max-width: 100%;
+}
+
+#log-container pre {
+    margin: 0;
+    padding: 0;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.input-with-help {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.input-with-help input {
+    flex: 1 1 auto;
+    min-width: 0;
+    /* allow shrink so right edge aligns */
+}
+
+.help-tooltip {
+    position: relative;
+    margin-left: 8px;
+    flex-shrink: 0;
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #0d1520;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 16px;
+    font-family: inherit;
+    transition: border-color 0.2s, background-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.help-tooltip:hover {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #ffffff;
+    box-shadow: none;
+}
+
+.help-tooltip .tooltip-text {
+    visibility: hidden;
+    width: min(520px, calc(100vw - 40px));
+    background: var(--panel);
+    color: var(--text);
+    text-align: left;
+    border-radius: 8px;
+    padding: 10px 12px;
+    position: absolute;
+    z-index: 1000;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    margin-left: 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    font-size: 13px;
+    line-height: 1.4;
+    font-family: inherit;
+    font-weight: 400;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+/* This will be handled by JavaScript now to allow for dynamic positioning */
+/* .help-tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+} */
+
+.tooltip-text.tooltip-below {
+    bottom: auto;
+    top: calc(100% + 8px);
+}
+
+/* Hide arrows from number inputs */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type=number] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+    /* Firefox */
+}
+
+.title-bar-btn svg path {
+    fill: var(--muted);
+}
+
+/* Custom Scrollbar Styles */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--panel);
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 6px;
+    border: 3px solid var(--panel);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted);
+}
+
+::-webkit-scrollbar-corner {
+    background: var(--panel);
+}

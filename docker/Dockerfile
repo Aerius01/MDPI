@@ -11,19 +11,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     MDPI_MODEL_DIR=/app/model \
     MDPI_INPUT_DIR=/app/input
 
-WORKDIR /app
+WORKDIR /projects/MDPI
 
-# Copy conda environment file and install into base env
-COPY --chown=$MAMBA_USER:$MAMBA_USER docker/environment.yml /tmp/environment.yml
-ARG MAMBA_DOCKERFILE_ACTIVATE=1
-RUN micromamba install -y -n base -f /tmp/environment.yml && \
+# Use micromamba to create and manage the environment
+COPY docker/environment.yml /app/environment.yml
+RUN micromamba create -f /app/environment.yml && \
     micromamba clean -a -y
 
-# Copy project files
-COPY --chown=$MAMBA_USER:$MAMBA_USER . /app
+# Copy the rest of the application code
+COPY . /app
 
-# Run as non-root user to preserve host file ownership on bind mounts
-USER $MAMBA_USER
-
-# Run streamlined entrypoint that mirrors Streamlit defaults
-ENTRYPOINT ["micromamba", "run", "-n", "base", "python", "docker/entrypoint.py"]
+# The new entrypoint is the Flask server
+ENTRYPOINT ["micromamba", "run", "-n", "mdpi-env", "python", "/app/docker/server.py"]

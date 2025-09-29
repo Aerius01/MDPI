@@ -11,7 +11,8 @@
         "pack": "electron-builder --dir"
     },
     "dependencies": {
-        "electron-updater": "^6.3.9"
+        "electron-updater": "^6.3.9",
+        "node-fetch": "^3.3.2"
     },
     "devDependencies": {
         "electron": "^31.3.0",

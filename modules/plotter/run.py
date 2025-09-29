@@ -24,7 +24,6 @@ def _calculate_concentration(plotter_data: PlotterData) -> pd.DataFrame:
     output_path = os.path.join(plotter_data.output_root, plotter_data.concentration_output_filename)
     concentration_df.to_csv(output_path, index=False, sep=plotter_data.csv_separator)
 
-    print(f"[PLOTTER]: Concentration data saved to: {output_path}")
     return concentration_df
 
 def _calculate_sizeclass_concentration(plotter_data: PlotterData) -> pd.DataFrame:
@@ -45,7 +44,6 @@ def _calculate_sizeclass_concentration(plotter_data: PlotterData) -> pd.DataFram
         output_path = os.path.join(plotter_data.output_root, plotter_data.sizeclass_concentration_filename)
         sizeclass_concentration_df.to_csv(output_path, index=False, sep=plotter_data.csv_separator)
 
-        print(f"[PLOTTER]: Size-class concentration data saved to: {output_path}")
     return sizeclass_concentration_df
 
 
@@ -59,6 +57,8 @@ def run_plotter(run_config: SimpleNamespace, object_data_df: pd.DataFrame):
     concentration_df = _calculate_concentration(plotter_data)
     sizeclass_concentration_df = _calculate_sizeclass_concentration(plotter_data)
 
+    print(f"[PLOTTER]: Concentration data saved to {plotter_data.output_root}")
+
     # Plotting
     plot_config = PlotConfig(
         figsize=plotter_data.figsize,
@@ -69,7 +69,6 @@ def run_plotter(run_config: SimpleNamespace, object_data_df: pd.DataFrame):
         file_format=plotter_data.file_format
     )
     output_dir = plotter_data.output_root
-    final_output_path = os.path.join(output_dir, 'plots')
     
     # Generate plots
     print("[PLOTTER]: Generating concentration plots...")
@@ -78,11 +77,10 @@ def run_plotter(run_config: SimpleNamespace, object_data_df: pd.DataFrame):
     print("[PLOTTER]: Generating length plots...")
     plot_length_profile(plotter_data, plot_config)
 
-    print(f"[PLOTTER]: Plots for {output_dir} saved in {final_output_path}.")
     if not sizeclass_concentration_df.empty:
         print("[PLOTTER]: Generating size-class concentration profiles...")
         plot_size_profiles(sizeclass_concentration_df, output_dir, plot_config)
-        
-        print(f"[PLOTTER]: Size-class plots for {output_dir} saved in {final_output_path}.")
     else:
         print("[PLOTTER]: Size-class concentration DataFrame is empty; skipping size-class plots.")
+        
+    print(f"[PLOTTER]: Plots saved in {os.path.join(output_dir, 'plots')}.")

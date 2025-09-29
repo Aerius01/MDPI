@@ -4,7 +4,6 @@ channels:
   - defaults
 dependencies:
   - python=3.11
-  - tqdm
   - imutils
   - numpy
   - opencv
@@ -12,4 +11,4 @@ dependencies:
   - scikit-image
   - tensorflow
   - scikit-learn
-  - pip
+  - flask

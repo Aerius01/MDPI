@@ -62,7 +62,7 @@ def validate_inputs_and_setup(
 
     # Centralized metadata parsing
     print("[PIPELINE]: Parsing metadata from input directory...")
-    metadata, pressure_sensor_csv_path, camera_format = validate_input_directory(
+    _, metadata, pressure_sensor_csv_path, camera_format = validate_input_directory(
         str(input_dir_path)
     )
     print(f"[PIPELINE]: Detected {camera_format} camera format.")

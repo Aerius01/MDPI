@@ -4,7 +4,6 @@ from typing import List, Tuple
 from PIL import Image
 import os
 from pathlib import Path
-from tqdm import tqdm
 from .flatfielding_data import FlatfieldingData
 
 def calculate_average_image(image_group: List[str]) -> Tuple[np.ndarray, List[Tuple[str, np.ndarray]]]:
@@ -62,8 +61,10 @@ def flatfield_images(data: FlatfieldingData):
     print(f"[FLATFIELDING]: Flatfielding {len(image_data)} images in batches of {data.batch_size}...")
 
     success_count = 0
+    total_images = len(image_data)
     recording_start_time_str = data.metadata['recording_start_time'].strftime("%H%M%S%f")[:-3]
-    for i in tqdm(range(0, len(image_data), data.batch_size), desc="[FLATFIELDING]"):
+    
+    for i in range(0, total_images, data.batch_size):
         batch_data = image_data[i:i + data.batch_size]
 
         for image_path, image_array in batch_data:
@@ -87,5 +88,15 @@ def flatfield_images(data: FlatfieldingData):
             )
             
             success_count += 1
-    
+        
+        # Print progress after each batch
+        progress = min(i + data.batch_size, total_images)
+        print(f"[PROGRESS] {progress}/{total_images}")
+
+    # Hardcode a final, completed progress bar to bypass async issues
+    bar = f"[{'#' * 40}]"
+    total_str = str(total_images)
+    progress_bar = f"[FLATFIELDING]: {bar} 100% | {total_str}/{total_str}"
+    print(progress_bar, flush=True)
+
     print(f"[FLATFIELDING]: {success_count} files saved to {data.output_path}")

@@ -1,0 +1,199 @@
+:root {
+    --bg: #0b0f14;
+    --panel: #121821;
+    --text: #e8eef5;
+    --muted: #9fb3c8;
+    --accent: #3b82f6;
+    --border: #223042;
+    --red: #ef4444;
+}
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: transparent;
+    color: var(--text);
+    font-size: 14px;
+    overflow: hidden;
+}
+
+.container {
+    height: 100%;
+    width: 100%;
+    padding: 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+    background: var(--bg);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    -webkit-app-region: drag;
+}
+
+.close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    text-align: center;
+    border-radius: 4px;
+    font-size: 24px;
+    color: var(--muted);
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+    transition: color 0.2s, background-color 0.2s;
+    z-index: 9999;
+}
+
+.close-button:hover {
+    color: var(--text);
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+h1 {
+    margin: 0 0 10px 0;
+    font-weight: 600;
+    font-size: 22px;
+}
+
+p {
+    color: var(--muted);
+    line-height: 1.6;
+    flex-shrink: 0;
+}
+
+.toggle-logs-button {
+    margin-top: 10px;
+    margin-bottom: 0;
+    padding: 6px 12px;
+    font-size: 14px;
+    font-family: inherit;
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: fit-content;
+    align-self: center;
+    -webkit-app-region: no-drag;
+}
+
+.toggle-logs-button:hover {
+    color: var(--text);
+}
+
+.toggle-logs-button .chevron {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-style: solid;
+    border-width: 0 2px 2px 0;
+    border-color: currentColor;
+    transform: translateY(-2px) rotate(45deg);
+    transition: transform 0.2s;
+}
+
+.toggle-logs-button.expanded .chevron {
+    transform: translateY(2px) rotate(225deg);
+}
+
+.collapsible {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.collapsible.expanded {
+    max-height: 300px;
+    /* Adjust as needed */
+}
+
+#status-container {
+    margin-top: 15px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#status-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    background: #070b10;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: left;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    -webkit-app-region: no-drag;
+}
+
+#status-messages p {
+    margin: 0 0 5px 0;
+    line-height: 1.4;
+    color: var(--text);
+}
+
+#status-messages pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 12px;
+}
+
+#status-message {
+    font-size: 16px;
+    color: var(--text);
+}
+
+.spinner {
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    border-top: 4px solid var(--accent);
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px auto;
+    flex-shrink: 0;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+#error-container {
+    margin-top: 20px;
+    color: var(--red);
+}
+
+button {
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    background: #0d1520;
+    color: var(--text);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-top: 10px;
+    -webkit-app-region: no-drag;
+}
+
+button:hover {
+    border-color: #2b3b52;
+    background: #0f1a28;
+}

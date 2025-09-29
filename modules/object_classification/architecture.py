@@ -5,6 +5,12 @@ from typing import Tuple, Dict
 # Suppress TensorFlow logging messages - MUST be set before importing tensorflow
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=all, 1=no INFO, 2=no INFO/WARN, 3=no INFO/WARN/ERROR
 
+try:
+    from absl import logging
+    logging.set_verbosity(logging.ERROR)
+except ImportError:
+    pass
+
 import tensorflow as tf
 tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 

@@ -4,142 +4,90 @@
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline';" />
-    <title>MDPI</title>
-    <style>
-        :root {
-            --bg: #0b0f14;
-            --panel: #121821;
-            --text: #e8eef5;
-            --muted: #9fb3c8;
-            --accent: #3b82f6;
-            --accent-2: #22c55e;
-            --border: #223042;
-        }
-
-        html,
-        body {
-            height: 100%;
-        }
-
-        body {
-            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-            margin: 0;
-            background: var(--bg);
-            color: var(--text);
-        }
-
-        .container {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 20px 20px 10px 20px;
-        }
-
-        h2 {
-            margin: 0 0 16px 0;
-            font-weight: 600;
-        }
-
-        .card {
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 14px;
-            margin-bottom: 12px;
-            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
-        }
-
-        .row {
-            display: grid;
-            grid-template-columns: 120px 1fr 110px;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        label {
-            color: var(--muted);
-        }
-
-        input[type=text] {
-            width: 100%;
-            padding: 10px 12px;
-            background: #0c121a;
-            color: var(--text);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-        }
-
-        button {
-            padding: 10px 12px;
-            border: 1px solid var(--border);
-            background: #0d1520;
-            color: var(--text);
-            border-radius: 8px;
-            cursor: pointer;
-        }
-
-        button:hover {
-            border-color: #2b3b52;
-            background: #0f1a28;
-        }
-
-        .actions {
-            display: flex;
-            gap: 10px;
-        }
-
-        #log {
-            height: 420px;
-            background: #070b10;
-            color: #cfe2ff;
-            padding: 12px;
-            overflow: auto;
-            white-space: pre-wrap;
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        }
-
-        .bar {
-            height: 6px;
-            background: linear-gradient(90deg, var(--accent), var(--accent-2));
-            width: 0%;
-            transition: width 0.2s;
-            border-radius: 999px;
-        }
-
-        .footer {
-            color: var(--muted);
-            font-size: 12px;
-            margin-top: 8px;
-        }
-    </style>
+    <title>MDPI Pipeline</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
     <div class="container">
-        <h2>MDPI Image Processing</h2>
-        <div class="card">
-            <div class="row">
-                <label>Input</label>
-                <input id="in" type="text" placeholder="/path/to/input" />
-                <button id="pick-in">Browse</button>
-            </div>
+        <h2>MDPI Image Processing Pipeline</h2>
 
+        <div class="card" id="config-card">
+            <h3>Configuration</h3>
+            <div>
+                <div class="form-group">
+                    <label for="capture-rate">Capture Rate (Hz)</label>
+                    <div class="input-with-help">
+                        <input type="number" id="capture-rate" value="2.4">
+                        <span class="help-tooltip">
+                            ?
+                            <span class="tooltip-text">The capture rate configuration parameter represents the rate at
+                                which the camera captures images. This is a foundational parameter, as an inaccurately
+                                reported rate will completely skew the matching of depth values to images, leading to
+                                silent, erroneous results.</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="image-depth">Image Depth (cm)</label>
+                    <div class="input-with-help">
+                        <input type="number" id="image-depth" value="10.0">
+                        <span class="help-tooltip">
+                            ?
+                            <span class="tooltip-text">The image depth configuration parameter represents the depth of
+                                the camera's field of view into plane. That is to say, the maximum distance into the
+                                image plane at which we are confident we can still accurately identify plankton. This
+                                parameter is used to calculate the volume of water into which binned individuals are
+                                divided into when producing the plots at the end of the pipeline.</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="image-height">Image Height (cm)</label>
+                    <div class="input-with-help">
+                        <input type="number" id="image-height" value="4.3">
+                        <span class="help-tooltip">
+                            ?
+                            <span class="tooltip-text">The image height configuration parameter represents the height of
+                                the camera's field of view in metric units. This parameter is used to calculate the
+                                image overlaps, as well as the volume of water into which binned individuals are divided
+                                into when producing the plots at the end of the pipeline.</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="image-width">Image Width (cm)</label>
+                    <div class="input-with-help">
+                        <input type="number" id="image-width" value="4.3">
+                        <span class="help-tooltip">
+                            ?
+                            <span class="tooltip-text">The image width configuration parameter represents the width of
+                                the camera's field of view in metric units. This parameter is used to calculate the
+                                volume of water into which binned individuals are divided into when producing the plots
+                                at the end of the pipeline.</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" id="input-card">
+            <h3>Input Paths</h3>
+            <div id="input-rows">
+                <!-- Input rows will be dynamically inserted here -->
+            </div>
+            <button id="add-row">Add Folder</button>
+        </div>
+
+        <div class="card">
+            <h3>Pipeline</h3>
             <div class="actions">
-                <button id="run">Run</button>
-                <button id="stop">Stop</button>
+                <button id="run-btn" class="btn-primary" disabled>Run</button>
+                <button id="stop-btn" class="btn-danger" disabled>Stop</button>
             </div>
+            <div id="log-container"></div>
         </div>
 
-        <div class="card">
-            <div id="log"></div>
-        </div>
-
-        <div class="card" style="padding:10px">
-            <div id="progress" class="bar"></div>
-            <div class="footer">Pull/build progress and logs will appear above.</div>
-        </div>
     </div>
 
     <script src="renderer.js"></script>

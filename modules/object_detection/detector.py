@@ -7,7 +7,6 @@ from typing import List, Tuple
 from dataclasses import dataclass
 from pathlib import Path
 import os
-from tqdm import tqdm
 
 from .detection_data import DetectionData
 
@@ -40,8 +39,9 @@ def _detect_objects(
 
     all_region_data = []
     output_count = 0
+    total_images = len(image_paths)
 
-    for i in tqdm(range(0, len(image_paths), data.batch_size), desc='[DETECTION]'):
+    for i in range(0, total_images, data.batch_size):
         batch_end = i + data.batch_size
         batch_image_paths = image_paths[i:batch_end]
 
@@ -58,6 +58,15 @@ def _detect_objects(
                 all_region_data.append(region_data)
                 cv2.imwrite(vignette_path, vignette_img)
                 output_count += 1
+        
+        progress = min(batch_end, total_images)
+        print(f"[PROGRESS] {progress}/{total_images}")
+
+    # Hardcode a final, completed progress bar to bypass async issues
+    bar = f"[{'#' * 40}]"
+    total_str = str(total_images)
+    progress_bar = f"[DETECTION]: {bar} 100% | {total_str}/{total_str}"
+    print(progress_bar, flush=True)
 
     combined_df = _create_dataframe(all_region_data, data.depth_profiles_df)
     

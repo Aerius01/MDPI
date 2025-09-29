@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>MDPI Backend Setup</title>
+    <link rel="stylesheet" href="setup.css">
+</head>
+
+<body>
+    <div class="container">
+        <div id="close-btn" class="close-button">&times;</div>
+        <div class="spinner"></div>
+        <p>Please wait while the backend is being prepared. This may take a few minutes...</p>
+        <button id="toggle-logs-btn" class="toggle-logs-button">
+            <span>Show Details</span>
+            <span class="chevron"></span>
+        </button>
+        <div id="status-container" class="collapsible">
+            <div id="status-messages">
+                <pre><code></code></pre>
+            </div>
+        </div>
+        <div id="error-container" style="display: none;">
+            <h2>Error</h2>
+            <p id="error-message"></p>
+            <button id="retry-button">Retry</button>
+        </div>
+    </div>
+    <script src="setup-renderer.js"></script>
+</body>
+
+</html>

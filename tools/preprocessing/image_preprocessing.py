@@ -1,7 +1,6 @@
 import cv2
 import os
 import numpy as np
-from tqdm import tqdm
 from sklearn.decomposition import PCA
 from tools.preprocessing.rotate_image import rotate_image
 
@@ -12,9 +11,10 @@ def image_preprocessing(image_paths, img_size):
     # initialize empty variable holders
     images = []
     angles = []
+    total_images = len(image_paths)
 
     # loop over all images
-    for image_path in tqdm(image_paths, desc='[PREPROCESSOR]'):
+    for i, image_path in enumerate(image_paths):
         # load in image
         img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
@@ -63,5 +63,4 @@ def image_preprocessing(image_paths, img_size):
     # calculate image means
     images_mean = np.mean(images)
 
-    print('[PREPROCESSOR]: loading and preprocessing images...DONE')
     return angles, images, images_mean
