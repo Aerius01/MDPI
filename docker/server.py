@@ -100,6 +100,10 @@ def validate():
         # Convert non-serializable types to strings before sending
         if 'recording_start_time' in metadata and hasattr(metadata['recording_start_time'], 'strftime'):
             metadata['recording_start_time'] = metadata['recording_start_time'].strftime('%H:%M:%S.%f')[:-3]
+        # Flask may serialize a date with an RFC-style string that includes "00:00:00 GMT".
+        # Format the date explicitly to avoid the extra time component in the UI.
+        if 'recording_start_date' in metadata and hasattr(metadata['recording_start_date'], 'strftime'):
+            metadata['recording_start_date'] = metadata['recording_start_date'].strftime('%a, %d %b %Y')
 
         return jsonify({
             "results": sanitized_results,

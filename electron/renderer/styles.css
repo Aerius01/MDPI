@@ -53,6 +53,27 @@ h2 {
     font-size: 24px;
 }
 
+.title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.title-row h2 {
+    margin: 0;
+    /* avoid extra vertical space inside the row */
+    line-height: 1;
+    /* align better with the icon height */
+}
+
+.title-logo {
+    width: 26px;
+    height: 26px;
+    display: block;
+    flex-shrink: 0;
+}
+
 h3 {
     margin: 0 0 16px 0;
     font-weight: 600;
@@ -68,6 +89,11 @@ h3 {
     padding: 20px;
     margin-bottom: 20px;
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+/* Reduce space after the final card above the footer */
+.container>.card:last-of-type {
+    margin-bottom: 8px;
 }
 
 #config-card {
@@ -340,4 +366,35 @@ input[type=number] {
 
 ::-webkit-scrollbar-corner {
     background: var(--panel);
+}
+
+/* Imprint footer */
+.imprint {
+    margin-top: 8px;
+    padding: 12px 0 12px;
+    /* reduce bottom padding */
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.imprint-inner {
+    max-width: 1100px;
+    /* align with main container */
+    margin: 0 auto;
+    padding: 0 20px;
+    /* add left/right padding like container */
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.imprint-logo {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+}
+
+.imprint-text p {
+    margin: 4px 0;
 }
