@@ -22,9 +22,6 @@ from gi.repository import Gtk, GdkPixbuf
 
 # import Gtk
 import sys
-import glob
-import random
-import math
 
 from DispGrid import DispGrid
 

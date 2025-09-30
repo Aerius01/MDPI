@@ -3,7 +3,6 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { spawn, exec } from 'node:child_process';
-import fetch from 'node-fetch';
 import os from 'node:os';
 
 
@@ -34,15 +33,6 @@ function sanitizeForDockerTag(value) {
     return String(value).toLowerCase().replace(/[^a-z0-9._-]/g, '-');
 }
 
-async function canPullImage(imageRef) {
-    try {
-        await runCommand('docker', ['pull', imageRef]);
-        return true;
-    } catch (_e) {
-        return false;
-    }
-}
-
 async function imageExists(imageRef) {
     try {
         await runCommand('docker', ['image', 'inspect', imageRef]);
@@ -70,7 +60,6 @@ const CONTAINER_NAME = 'mdpi-backend-container';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.join(__dirname, '..');
-const PROJECTS_ROOT = path.join(REPO_ROOT, '..');
 const USER_HOME = os.homedir();
 const SERVER_URL = 'http://localhost:5001';
 
@@ -289,8 +278,6 @@ async function startLogStream(containerId) {
             }
 
             // Suppress Flask development server warnings
-            // eslint-disable-next-line no-control-regex
-            const ansiRegex = /[\u001b\u009b][[()#;?]*.{0,2}(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
             const plainLine = trimmedLine.replace(ansiRegex, '');
             const flaskMessages = [
                 '* Serving Flask app',
@@ -513,7 +500,7 @@ async function startBackendContainer() {
                     healthy = true;
                     break;
                 }
-            } catch (e) {
+            } catch (_e) {
                 // Ignore fetch errors while waiting
             }
             await new Promise(resolve => setTimeout(resolve, 1000));

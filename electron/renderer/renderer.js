@@ -188,7 +188,7 @@ window.mdpi.onValidate((data) => {
     // Find the input element that corresponds to the validated path
     const inputs = document.querySelectorAll('input[type="text"]');
     let targetId = null;
-    for (const input of inputs) {
+    for (const _input of inputs) {
         // This assumes the backend returns a path that can be matched, which might need adjustment
         // For now, let's assume we update the last focused or first invalid input.
         // A more robust solution might involve passing the input `id` with the validation request.

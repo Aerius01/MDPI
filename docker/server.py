@@ -1,8 +1,6 @@
 import os
 import sys
 from flask import Flask, request, jsonify
-import subprocess
-import threading
 import multiprocessing
 
 # Add project root to sys.path to allow module imports
@@ -17,7 +15,6 @@ app = Flask(__name__)
 
 HOST_HOME_DIR = os.environ.get('HOST_HOME_DIR')
 CONTAINER_HOME_DIR = '/host_home'
-CONTAINER_REPO_ROOT = '/projects/MDPI'
 
 
 # --- State ---

@@ -3,7 +3,7 @@ FROM mambaorg/micromamba:1.5.8
 
 LABEL org.opencontainers.image.title="MDPI Pipeline"
 LABEL org.opencontainers.image.description="Dockerized MDPI end-to-end pipeline running run_pipeline.py"
-LABEL org.opencontainers.image.source="https://github.com/your-org/your-repo"
+LABEL org.opencontainers.image.source="https://github.com/Aerius01/MDPI.git"
 LABEL org.opencontainers.image.licenses="MIT"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

@@ -17,7 +17,6 @@ Example:
 
 import argparse
 import sys
-import os
 from pathlib import Path
 from types import SimpleNamespace
 

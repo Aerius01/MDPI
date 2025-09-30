@@ -1,5 +1,4 @@
 import cv2
-import os
 import numpy as np
 from sklearn.decomposition import PCA
 from pipeline.tools.preprocessing.rotate_image import rotate_image
@@ -11,7 +10,7 @@ def image_preprocessing(image_paths, img_size):
     # initialize empty variable holders
     images = []
     angles = []
-    total_images = len(image_paths)
+    # removed unused total_images
 
     # loop over all images
     for i, image_path in enumerate(image_paths):
@@ -19,10 +18,10 @@ def image_preprocessing(image_paths, img_size):
         img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
         # Otsu threshold
-        ret, otsu = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+        _, otsu = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
 
         # find contours
-        contours, hierarchy = cv2.findContours(otsu, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(otsu, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
         # create empty image
         largest_area = np.zeros(shape=[100, 100])
