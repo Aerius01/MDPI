@@ -11,7 +11,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     MDPI_MODEL_DIR=/app/model \
     MDPI_INPUT_DIR=/app/input
 
-WORKDIR /projects/MDPI
+WORKDIR /app
 
 # Use micromamba to create and manage the environment
 COPY docker/environment.yml /app/environment.yml
@@ -21,5 +21,8 @@ RUN micromamba create -f /app/environment.yml && \
 # Copy the rest of the application code
 COPY . /app
 
-# The new entrypoint is the Flask server
-ENTRYPOINT ["micromamba", "run", "-n", "mdpi-env", "python", "/app/docker/server.py"]
+# Expose the API port
+EXPOSE 5001
+
+# Run the Flask app via Gunicorn (production WSGI server)
+ENTRYPOINT ["micromamba", "run", "-n", "mdpi-env", "gunicorn", "--chdir", "/app/docker", "-b", "0.0.0.0:5001", "server:app", "--workers", "1", "--threads", "4", "--timeout", "0"]

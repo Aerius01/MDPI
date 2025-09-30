@@ -6,6 +6,9 @@ import { spawn, exec } from 'node:child_process';
 import os from 'node:os';
 
 
+// Minimal ANSI escape code regex for stripping color codes from logs
+const ansiRegex = /\u001B\[[0-?]*[ -\/]*[@-~]/g;
+
 // Resolve Docker image dynamically for development:
 // 1) If MDPI_DOCKER_IMAGE is set, use it
 // 2) Else if MDPI_GIT_BRANCH is set, use ghcr.io/<owner>/<image>:<branch>
@@ -13,7 +16,7 @@ import os from 'node:os';
 // 4) Else fall back to :latest
 const GHCR_OWNER = (process.env.MDPI_GHCR_OWNER || 'aerius01').toLowerCase();
 const GHCR_IMAGE = 'mdpi-pipeline';
-const PULL_POLICY = (process.env.MDPI_PULL_POLICY || 'always').toLowerCase(); // always | if-not-present | never
+const PULL_POLICY = (process.env.MDPI_PULL_POLICY || 'if-not-present').toLowerCase(); // always | if-not-present | never
 
 function readGitBranch() {
     try {
@@ -82,6 +85,7 @@ function createSetupWindow() {
             preload: path.join(__dirname, 'setup-preload.cjs'),
             contextIsolation: true,
             nodeIntegration: false,
+            devTools: false,
         },
     });
     setupWindow.loadFile(path.join(__dirname, 'renderer', 'setup.html'));
@@ -100,6 +104,7 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.cjs'),
             contextIsolation: true,
             nodeIntegration: false,
+            devTools: false,
         },
     });
 
@@ -269,6 +274,7 @@ async function startLogStream(containerId) {
 
             // Replace container-relative paths with host-relative paths
             trimmedLine = trimmedLine.replace(/\/projects\/MDPI/g, REPO_ROOT);
+            trimmedLine = trimmedLine.replace(/\/app/g, REPO_ROOT);
             trimmedLine = trimmedLine.replace(/\/host_home/g, USER_HOME);
 
             // Suppress spurious MLIR and ABSL messages

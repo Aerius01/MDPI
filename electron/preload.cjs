@@ -6,7 +6,6 @@ contextBridge.exposeInMainWorld('mdpi', {
     run: (inputPaths, config) => ipcRenderer.invoke('run-pipeline', { inputPaths, config }),
     stop: () => ipcRenderer.invoke('stop-pipeline'),
     onLog: (cb) => ipcRenderer.on('log', (_e, msg) => cb(msg)),
-    onCompleted: (cb) => ipcRenderer.on('completed', (_e, payload) => cb(payload)),
     onProgressUpdate: (callback) => ipcRenderer.on('progress-update', (_evt, value) => callback(value)),
     onCompleted: (callback) => ipcRenderer.on('completed', (_evt, value) => callback(value)),
     onValidate: (callback) => ipcRenderer.on('validate-path-result', (_evt, value) => callback(value)),
