@@ -7,8 +7,47 @@ import fetch from 'node-fetch';
 import os from 'node:os';
 
 
-// Docker image to use; default to public GHCR image (must be lowercase), override with MDPI_DOCKER_IMAGE if set
-const DOCKER_IMAGE = process.env.MDPI_DOCKER_IMAGE || 'ghcr.io/aerius01/mdpi-pipeline:latest';
+// Resolve Docker image dynamically for development:
+// 1) If MDPI_DOCKER_IMAGE is set, use it
+// 2) Else if MDPI_GIT_BRANCH is set, use ghcr.io/<owner>/<image>:<branch>
+// 3) Else if a git repo is present, read current branch from .git/HEAD
+// 4) Else fall back to :latest
+const GHCR_OWNER = (process.env.MDPI_GHCR_OWNER || 'aerius01').toLowerCase();
+const GHCR_IMAGE = 'mdpi-pipeline';
+const PULL_POLICY = (process.env.MDPI_PULL_POLICY || 'always').toLowerCase(); // always | if-not-present | never
+
+function readGitBranch() {
+    try {
+        const headPath = path.join(REPO_ROOT, '.git', 'HEAD');
+        if (!fs.existsSync(headPath)) return null;
+        const head = fs.readFileSync(headPath, 'utf8').trim();
+        // Typical format: "ref: refs/heads/<branch>"
+        const match = head.match(/^ref:\s+refs\/heads\/(.+)$/);
+        return match ? match[1] : null;
+    } catch (_e) {
+        return null;
+    }
+}
+
+function sanitizeForDockerTag(value) {
+    // Docker tag rules are restrictive; lowercase and replace invalid chars with '-'
+    return String(value).toLowerCase().replace(/[^a-z0-9._-]/g, '-');
+}
+
+function computeDefaultImage() {
+    if (process.env.MDPI_DOCKER_IMAGE) {
+        return process.env.MDPI_DOCKER_IMAGE;
+    }
+    const envBranch = process.env.MDPI_GIT_BRANCH;
+    const gitBranch = envBranch || readGitBranch();
+    if (gitBranch) {
+        const tag = sanitizeForDockerTag(gitBranch);
+        return `ghcr.io/${GHCR_OWNER}/${GHCR_IMAGE}:${tag}`;
+    }
+    return `ghcr.io/${GHCR_OWNER}/${GHCR_IMAGE}:latest`;
+}
+
+const DOCKER_IMAGE = computeDefaultImage();
 const CONTAINER_NAME = 'mdpi-backend-container';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -85,6 +124,10 @@ app.on('activate', () => {
 app.disableHardwareAcceleration();
 
 app.whenReady().then(async () => {
+    // Preflight: ensure Docker is installed and the daemon is running
+    const ok = await preflightDocker();
+    if (!ok) return; // preflight will show a message and quit
+
     createSetupWindow();
     // Automatically start the backend on launch
     await manageBackendProcess();
@@ -149,6 +192,46 @@ function runCommand(cmd, args) {
         });
         child.on('error', (err) => reject(err));
     });
+}
+
+async function showOkAndQuit(title, message) {
+    try {
+        await dialog.showMessageBox({
+            type: 'error',
+            title: title || 'MDPI',
+            message: message || 'An unexpected error occurred.',
+            buttons: ['OK'],
+            defaultId: 0,
+            noLink: true
+        });
+    } finally {
+        app.quit();
+    }
+}
+
+async function preflightDocker() {
+    // Check Docker CLI presence
+    try {
+        await runCommand('docker', ['--version']);
+    } catch (_e) {
+        await showOkAndQuit(
+            'Docker not found',
+            'Docker is required but was not found.\nPlease install Docker and ensure it is on your PATH, then relaunch the app.'
+        );
+        return false;
+    }
+
+    // Check Docker daemon connectivity
+    try {
+        await runCommand('docker', ['info']);
+    } catch (_e) {
+        await showOkAndQuit(
+            'Docker is not running',
+            'Docker is installed but not running.\nStart Docker, then relaunch the app.'
+        );
+        return false;
+    }
+    return true;
 }
 
 async function stopLogStream() {
@@ -281,26 +364,10 @@ async function stopBackendContainer() {
 }
 
 async function ensureImage() {
-    log(`Checking for Docker image: ${DOCKER_IMAGE}...`);
-    try {
-        await runCommand('docker', ['image', 'inspect', DOCKER_IMAGE]);
-        log(`Image ${DOCKER_IMAGE} found locally.`);
-        return;
-    } catch (e) {
-        // Image not found locally, decide whether to pull or build
-    }
+    log(`Checking for Docker image: ${DOCKER_IMAGE} (pullPolicy=${PULL_POLICY})...`);
 
-    if (DOCKER_IMAGE !== 'mdpi-local:dev') {
-        log(`Attempting to pull production image ${DOCKER_IMAGE} from registry...`);
-        try {
-            await runCommand('docker', ['pull', DOCKER_IMAGE]);
-            log(`Successfully pulled image ${DOCKER_IMAGE}.`);
-            return;
-        } catch (pullError) {
-            log(`Failed to pull image ${DOCKER_IMAGE}. Error: ${pullError.message}`);
-            throw new Error(`Could not pull production image: ${DOCKER_IMAGE}`);
-        }
-    } else {
+    // Development image is built locally
+    if (DOCKER_IMAGE === 'mdpi-local:dev') {
         log(`Image ${DOCKER_IMAGE} not found. Building...`);
         try {
             const dockerfilePath = path.join(REPO_ROOT, 'docker', 'Dockerfile');
@@ -310,6 +377,59 @@ async function ensureImage() {
             log(`Failed to build image ${DOCKER_IMAGE}. Error: ${buildError.message}`);
             throw new Error(`Could not build development image: ${DOCKER_IMAGE}`);
         }
+        return;
+    }
+
+    // For registry images, decide when to pull
+    const imageExistsLocally = async () => {
+        try {
+            await runCommand('docker', ['image', 'inspect', DOCKER_IMAGE]);
+            return true;
+        } catch (_e) {
+            return false;
+        }
+    };
+
+    const tryPull = async () => {
+        log(`Attempting to pull ${DOCKER_IMAGE} from registry...`);
+        try {
+            await runCommand('docker', ['pull', DOCKER_IMAGE]);
+            log(`Successfully pulled image ${DOCKER_IMAGE}.`);
+            return true;
+        } catch (pullError) {
+            log(`Warning: pull failed for ${DOCKER_IMAGE}: ${pullError.message}`);
+            return false;
+        }
+    };
+
+    if (PULL_POLICY === 'always') {
+        const pulled = await tryPull();
+        if (!pulled) {
+            if (await imageExistsLocally()) {
+                log(`Using existing local image ${DOCKER_IMAGE} (offline or network issue).`);
+                return;
+            }
+            throw new Error(`Could not pull production image and no local copy found: ${DOCKER_IMAGE}`);
+        }
+        return;
+    }
+
+    if (PULL_POLICY === 'never') {
+        if (await imageExistsLocally()) {
+            log(`Image ${DOCKER_IMAGE} found locally (pull policy: never).`);
+            return;
+        }
+        throw new Error(`Image not present locally and pulls are disabled (MDPI_PULL_POLICY=never): ${DOCKER_IMAGE}`);
+    }
+
+    // if-not-present
+    if (await imageExistsLocally()) {
+        log(`Image ${DOCKER_IMAGE} found locally (pull policy: if-not-present).`);
+        return;
+    }
+    const pulled = await tryPull();
+    if (!pulled) {
+        throw new Error(`Could not pull production image: ${DOCKER_IMAGE}`);
     }
 }
 
