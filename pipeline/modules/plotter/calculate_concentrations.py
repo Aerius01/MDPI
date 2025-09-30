@@ -7,7 +7,7 @@ Replicates the exact functionality for calculating concentration data from depth
 import pandas as pd
 import numpy as np
 from typing import Sequence, List
-from modules.plotter.plotter_data import PlotterData
+from pipeline.modules.plotter.plotter_data import PlotterData
 
 
 # Custom functions equivalent to R tools

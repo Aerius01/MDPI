@@ -5,8 +5,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from modules.plotter.plot_profile import PlotConfig
-from modules.plotter.plot_utils import (
+from pipeline.modules.plotter.plot_profile import PlotConfig
+from pipeline.modules.plotter.plot_utils import (
     setup_plot_aesthetics,
     configure_axes,
     save_plot,

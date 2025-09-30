@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import pandas as pd
 import os
-from modules.common.constants import CONSTANTS
+from pipeline.modules.common.constants import CONSTANTS
 from types import SimpleNamespace
 
 # ─── F L A T F I E L D I N G · P A R A M E T E R S ──────────────────────────────────

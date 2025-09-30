@@ -1,10 +1,10 @@
 from pathlib import Path
 import pandas as pd
-from modules.common.parser import _list_image_filenames
+from pipeline.modules.common.parser import _list_image_filenames
 import os
 from dataclasses import dataclass, fields
 from types import SimpleNamespace
-from modules.common.constants import CONSTANTS
+from pipeline.modules.common.constants import CONSTANTS
 
 # ─── O B J E C T · D E T E C T I O N · P A R A M E T E R S ──────────────────────────
 # Thresholding values for image binarization

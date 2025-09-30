@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import os
 import argparse
 from dataclasses import dataclass
-from modules.plotter.plot_utils import setup_plot_aesthetics, configure_axes, save_plot
-from modules.plotter.constants import PLOTTING_CONSTANTS
+from pipeline.modules.plotter.plot_utils import setup_plot_aesthetics, configure_axes, save_plot
+from pipeline.modules.plotter.constants import PLOTTING_CONSTANTS
 
 @dataclass
 class DayNightPlotConfig:

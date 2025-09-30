@@ -3,9 +3,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
 
-from modules.plotter.plot_utils import setup_plot_aesthetics, configure_axes, save_plot
-from modules.plotter.plotter_data import PlotterData
-from modules.plotter.plot_profile import PlotConfig
+from pipeline.modules.plotter.plot_utils import setup_plot_aesthetics, configure_axes, save_plot
+from pipeline.modules.plotter.plotter_data import PlotterData
+from pipeline.modules.plotter.plot_profile import PlotConfig
 
 
 def plot_length_profile(plotter_data: PlotterData, config: PlotConfig):

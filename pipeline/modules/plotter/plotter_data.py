@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 import pandas as pd
 from typing import Tuple
-from modules.common.constants import CONSTANTS
+from pipeline.modules.common.constants import CONSTANTS
 
 # ─── P L O T T E R · C O N S T A N T S ──────────────────────────────────────────────────
 # Plot aesthetics

@@ -7,12 +7,12 @@ from .architecture import _build_model
 from .classification_data import ClassificationData
 
 # Custom modules located externally from the object_classification module
-from tools.nn.soft_max import soft_max
-from tools.io.batch_generator import batch_generator
-from tools.preprocessing.image_preprocessing import image_preprocessing
-from tools.metrics.entropy import entropy
-from tools.metrics.least_confidence import least_confidence
-from tools.metrics.margin_sampling import margin_sampling
+from pipeline.tools.nn.soft_max import soft_max
+from pipeline.tools.io.batch_generator import batch_generator
+from pipeline.tools.preprocessing.image_preprocessing import image_preprocessing
+from pipeline.tools.metrics.entropy import entropy
+from pipeline.tools.metrics.least_confidence import least_confidence
+from pipeline.tools.metrics.margin_sampling import margin_sampling
 
 # Suppress TensorFlow logging messages - MUST be set before importing tensorflow
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=all, 1=no INFO, 2=no INFO/WARN, 3=no INFO/WARN/ERROR

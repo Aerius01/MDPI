@@ -6,14 +6,14 @@ import os
 from types import SimpleNamespace
 import pandas as pd
 
-from modules.plotter.calculate_concentrations import (
+from pipeline.modules.plotter.calculate_concentrations import (
     calculate_concentration_data,
     calculate_sizeclass_concentration_data,
 )
-from modules.plotter.plot_profile import PlotConfig, plot_single_profile
-from modules.plotter.plot_length_profile import plot_length_profile
-from modules.plotter.plot_size_profiles import plot_size_profiles
-from modules.plotter.plotter_data import PlotterData, process_arguments
+from pipeline.modules.plotter.plot_profile import PlotConfig, plot_single_profile
+from pipeline.modules.plotter.plot_length_profile import plot_length_profile
+from pipeline.modules.plotter.plot_size_profiles import plot_size_profiles
+from pipeline.modules.plotter.plotter_data import PlotterData, process_arguments
 
 
 def _calculate_concentration(plotter_data: PlotterData) -> pd.DataFrame:

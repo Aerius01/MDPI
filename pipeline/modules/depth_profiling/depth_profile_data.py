@@ -3,7 +3,7 @@ from typing import Tuple
 import pandas as pd
 from types import SimpleNamespace
 
-from modules.common.constants import CONSTANTS
+from pipeline.modules.common.constants import CONSTANTS
 
 # ─── M D P I · P A R A M E T E R S ──────────────────────────────────────────────────
 # The MDPI is placed horizontally as it moves through the water column,

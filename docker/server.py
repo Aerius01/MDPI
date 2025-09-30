@@ -10,8 +10,8 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from modules.common.validation import validate_input_directory
-from run_pipeline import validate_inputs_and_setup, execute_pipeline
+from pipeline.modules.common.validation import validate_input_directory
+from pipeline.run_pipeline import validate_inputs_and_setup, execute_pipeline
 
 app = Flask(__name__)
 
@@ -124,7 +124,7 @@ def run():
     data = request.get_json()
     input_dirs = data.get('input_paths')
     config = data.get('config')
-    model_dir = os.path.join(PROJECT_ROOT, 'model')
+    model_dir = os.path.join(PROJECT_ROOT, 'pipeline', 'model')
 
     if not input_dirs:
         return jsonify({"ok": False, "error": "No input directories provided."}), 400

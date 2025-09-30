@@ -22,8 +22,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 # Common
-from modules.common.cli_utils import prompt_for_mdpi_configuration
-from modules.common.validation import (
+from pipeline.modules.common.cli_utils import prompt_for_mdpi_configuration
+from pipeline.modules.common.validation import (
     validate_input_directory,
     validate_model,
     setup_output_directory,
@@ -31,15 +31,15 @@ from modules.common.validation import (
 
 
 # Modules
-from modules.depth_profiling.depth_profile_data import (
+from pipeline.modules.depth_profiling.depth_profile_data import (
     CAPTURE_RATE,
     IMAGE_HEIGHT_CM,
 )
-from modules.depth_profiling.run import run_depth_profiling
-from modules.flatfielding.run import run_flatfielding
-from modules.object_detection.run import run_detection
-from modules.object_classification.run import run_classification
-from modules.plotter.run import run_plotter
+from pipeline.modules.depth_profiling.run import run_depth_profiling
+from pipeline.modules.flatfielding.run import run_flatfielding
+from pipeline.modules.object_detection.run import run_detection
+from pipeline.modules.object_classification.run import run_classification
+from pipeline.modules.plotter.run import run_plotter
 
 # Global configuration defaults (not in CONSTANTS)
 # Volume in L == dm^3

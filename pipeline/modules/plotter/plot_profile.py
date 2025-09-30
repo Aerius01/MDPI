@@ -4,7 +4,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
 from dataclasses import dataclass
-from modules.plotter.plot_utils import setup_plot_aesthetics, configure_axes, save_plot, _calculate_nice_step
+from pipeline.modules.plotter.plot_utils import setup_plot_aesthetics, configure_axes, save_plot, _calculate_nice_step
 
 @dataclass
 class PlotConfig:

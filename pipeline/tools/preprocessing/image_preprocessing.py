@@ -2,7 +2,7 @@ import cv2
 import os
 import numpy as np
 from sklearn.decomposition import PCA
-from tools.preprocessing.rotate_image import rotate_image
+from pipeline.tools.preprocessing.rotate_image import rotate_image
 
 
 def image_preprocessing(image_paths, img_size):

@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
 
-from modules.common.parser import find_single_csv_file, parse_file_metadata
-from modules.depth_profiling.depth_profile_data import (
+from pipeline.modules.common.parser import find_single_csv_file, parse_file_metadata
+from pipeline.modules.depth_profiling.depth_profile_data import (
     PRESSURE_SENSOR_CSV_SEPARATOR,
     detect_camera_format,
     read_csv_with_encodings,

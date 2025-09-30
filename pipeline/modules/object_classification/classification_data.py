@@ -6,7 +6,7 @@ from typing import List
 from imutils import paths
 from datetime import date, time
 from types import SimpleNamespace
-from modules.common.constants import CONSTANTS
+from pipeline.modules.common.constants import CONSTANTS
 
 # ─── O B J E C T · C L A S S I F I C A T I O N · P A R A M E T E R S ──────────────
 CLASSIFICATION_BATCH_SIZE: int = 32
