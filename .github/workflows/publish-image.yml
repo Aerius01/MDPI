@@ -18,6 +18,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Compute lowercase owner
+        id: owner
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -35,11 +39,12 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/mdpi-pipeline
+          images: ghcr.io/${{ steps.owner.outputs.owner }}/mdpi-pipeline
           tags: |
             type=ref,event=branch
             type=ref,event=tag
             type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
         uses: docker/build-push-action@v6

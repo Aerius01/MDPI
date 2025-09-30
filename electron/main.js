@@ -7,8 +7,8 @@ import fetch from 'node-fetch';
 import os from 'node:os';
 
 
-// Docker image to use; publish your backend to this tag
-const DOCKER_IMAGE = process.env.MDPI_DOCKER_IMAGE || 'mdpi-local:dev';
+// Docker image to use; default to public GHCR image (must be lowercase), override with MDPI_DOCKER_IMAGE if set
+const DOCKER_IMAGE = process.env.MDPI_DOCKER_IMAGE || 'ghcr.io/aerius01/mdpi-pipeline:latest';
 const CONTAINER_NAME = 'mdpi-backend-container';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
