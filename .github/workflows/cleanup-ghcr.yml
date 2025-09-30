@@ -1,0 +1,63 @@
+name: Cleanup GHCR branch tags
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute lowercase owner
+        id: owner
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Install GitHub CLI and jq
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+          echo "GH_CLI already provided on ubuntu-latest"
+
+      - name: Get active branches
+        run: |
+          git ls-remote --heads https://github.com/${{ github.repository }} \
+            | awk '{print $2}' | sed 's#refs/heads/##' | tr '[:upper:]' '[:lower:]' > branches.txt
+          echo "Active branches:"; cat branches.txt
+
+      - name: Delete versions without protected/active tags
+        env:
+          OWNER: ${{ steps.owner.outputs.owner }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BRANCHES=$(cat branches.txt)
+          page=1
+          while :; do
+            resp=$(gh api -H "Accept: application/vnd.github+json" \
+              "/users/$OWNER/packages/container/mdpi-pipeline/versions?per_page=100&page=$page")
+            count=$(echo "$resp" | jq 'length')
+            [ "$count" -eq 0 ] && break
+            for id in $(echo "$resp" | jq -r '.[].id'); do
+              tags=$(echo "$resp" | jq -r ".[] | select(.id==$id) | .metadata.container.tags[]?" | tr '[:upper:]' '[:lower:]' || true)
+              keep=false
+              for t in $tags; do
+                if echo "$BRANCHES" | grep -qx "$t"; then keep=true; fi
+                if [ "$t" = "main" ] || [ "$t" = "latest" ] || echo "$t" | grep -Eq '^v[0-9]'; then keep=true; fi
+              done
+              if [ "$keep" = false ]; then
+                echo "Deleting version $id (tags: ${tags:-<none>})"
+                gh api --method DELETE -H "Accept: application/vnd.github+json" \
+                  "/users/$OWNER/packages/container/mdpi-pipeline/versions/$id"
+              fi
+            done
+            page=$((page+1))
+          done
+
+

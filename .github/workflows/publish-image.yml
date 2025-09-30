@@ -2,7 +2,12 @@ name: Publish Docker image to GHCR
 
 on:
   push:
-    branches: [ main, tkinter-refactor ]
+    branches: ['**']
+    paths:
+      - 'docker/**'
+      - 'pipeline/**'
+      - 'docker/Dockerfile'
+      - '.github/workflows/publish-image.yml'
     tags:
       - 'v*.*.*'
   workflow_dispatch:

@@ -34,6 +34,24 @@ function sanitizeForDockerTag(value) {
     return String(value).toLowerCase().replace(/[^a-z0-9._-]/g, '-');
 }
 
+async function canPullImage(imageRef) {
+    try {
+        await runCommand('docker', ['pull', imageRef]);
+        return true;
+    } catch (_e) {
+        return false;
+    }
+}
+
+async function imageExists(imageRef) {
+    try {
+        await runCommand('docker', ['image', 'inspect', imageRef]);
+        return true;
+    } catch (_e) {
+        return false;
+    }
+}
+
 function computeDefaultImage() {
     if (process.env.MDPI_DOCKER_IMAGE) {
         return process.env.MDPI_DOCKER_IMAGE;
@@ -380,57 +398,72 @@ async function ensureImage() {
         return;
     }
 
-    // For registry images, decide when to pull
-    const imageExistsLocally = async () => {
-        try {
-            await runCommand('docker', ['image', 'inspect', DOCKER_IMAGE]);
-            return true;
-        } catch (_e) {
-            return false;
-        }
-    };
+    // For registry images, decide when to pull, with fallback tags
+    const candidates = [
+        DOCKER_IMAGE,
+        // If DOCKER_IMAGE is a branch tag, also try main and latest as fallbacks
+        (() => {
+            const match = DOCKER_IMAGE.match(/^ghcr\.io\/.+\/.+:(.+)$/);
+            const tag = match ? match[1] : null;
+            if (tag && tag !== 'main') return `ghcr.io/${GHCR_OWNER}/${GHCR_IMAGE}:main`;
+            return null;
+        })(),
+        `ghcr.io/${GHCR_OWNER}/${GHCR_IMAGE}:latest`
+    ].filter(Boolean);
 
-    const tryPull = async () => {
-        log(`Attempting to pull ${DOCKER_IMAGE} from registry...`);
+    let lastError = null;
+
+    const imageExistsLocally = (ref) => imageExists(ref);
+    const tryPull = async (ref) => {
+        log(`Attempting to pull ${ref} from registry...`);
         try {
-            await runCommand('docker', ['pull', DOCKER_IMAGE]);
-            log(`Successfully pulled image ${DOCKER_IMAGE}.`);
+            await runCommand('docker', ['pull', ref]);
+            log(`Successfully pulled image ${ref}.`);
             return true;
         } catch (pullError) {
-            log(`Warning: pull failed for ${DOCKER_IMAGE}: ${pullError.message}`);
+            log(`Warning: pull failed for ${ref}: ${pullError.message}`);
+            lastError = pullError;
             return false;
         }
     };
 
     if (PULL_POLICY === 'always') {
-        const pulled = await tryPull();
-        if (!pulled) {
-            if (await imageExistsLocally()) {
-                log(`Using existing local image ${DOCKER_IMAGE} (offline or network issue).`);
+        for (const ref of candidates) {
+            const pulled = await tryPull(ref);
+            if (pulled) return;
+        }
+        // Fallback to any local candidate
+        for (const ref of candidates) {
+            if (await imageExistsLocally(ref)) {
+                log(`Using existing local image ${ref} (offline or registry missing tag).`);
                 return;
             }
-            throw new Error(`Could not pull production image and no local copy found: ${DOCKER_IMAGE}`);
         }
-        return;
+        throw new Error(`Could not pull any candidate images (${candidates.join(', ')}). Last error: ${lastError?.message || 'unknown'}`);
     }
 
     if (PULL_POLICY === 'never') {
-        if (await imageExistsLocally()) {
-            log(`Image ${DOCKER_IMAGE} found locally (pull policy: never).`);
-            return;
+        for (const ref of candidates) {
+            if (await imageExistsLocally(ref)) {
+                log(`Image ${ref} found locally (pull policy: never).`);
+                return;
+            }
         }
-        throw new Error(`Image not present locally and pulls are disabled (MDPI_PULL_POLICY=never): ${DOCKER_IMAGE}`);
+        throw new Error(`No candidate image present locally and pulls are disabled (MDPI_PULL_POLICY=never): ${candidates.join(', ')}`);
     }
 
     // if-not-present
-    if (await imageExistsLocally()) {
-        log(`Image ${DOCKER_IMAGE} found locally (pull policy: if-not-present).`);
-        return;
+    for (const ref of candidates) {
+        if (await imageExistsLocally(ref)) {
+            log(`Image ${ref} found locally (pull policy: if-not-present).`);
+            return;
+        }
     }
-    const pulled = await tryPull();
-    if (!pulled) {
-        throw new Error(`Could not pull production image: ${DOCKER_IMAGE}`);
+    for (const ref of candidates) {
+        const pulled = await tryPull(ref);
+        if (pulled) return;
     }
+    throw new Error(`Could not pull any candidate images (${candidates.join(', ')}).`);
 }
 
 async function startBackendContainer() {
