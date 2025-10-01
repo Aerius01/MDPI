@@ -64,21 +64,23 @@ flowchart LR
     end
 
     subgraph Host
-        UI -->|IPC| Main[Electron Main Process]\n(electron/main.js)
-        Main -->|Docker CLI| Docker[(Docker Daemon)]
+        UI -- IPC --> Main["Electron Main Process<br/>(electron/main.js)"]
+        Main -- Docker CLI --> Docker[(Docker Daemon)]
     end
 
     subgraph Container[Backend Container]
-        Server[Flask API\n(docker/server.py)]
-        Pipeline[Python Pipeline\n(pipeline/* modules)]
-        Server -->|/validate,/run,/stop| Pipeline
+        Server["Flask API<br/>(docker/server.py)"]
+        Pipeline["Python Pipeline<br/>(pipeline/* modules)"]
+        Server -- /validate,/run,/stop --> Pipeline
     end
 
-    Docker <-. run/stop, logs .-> Main
-    Main <-->|HTTP :5001| Server
-    Pipeline -->|Filesystem mounts| Host
+    Docker -. run/stop, logs .-> Main
+    Main <-- HTTP :5001 --> Server
+    Pipeline -- Filesystem mounts --> Host
 
-    note over Main,Server: Main manages image resolution, container lifecycle,\nhealth checks, log streaming, and forwards UI actions.
+    Note["Main manages image resolution, container lifecycle,<br/>health checks, log streaming, and forwards UI actions."]
+    Note --- Main
+    Note --- Server
 ```
 
 #### Responsibilities
