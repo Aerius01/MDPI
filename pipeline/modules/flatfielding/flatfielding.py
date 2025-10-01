@@ -47,7 +47,7 @@ def save_flatfielded_image(
     image = Image.fromarray(flatfielded_image_array)
     image.save(output_image_path)
 
-def flatfield_images(data: FlatfieldingData):
+def flatfield_images(data: FlatfieldingData, stop_check=None):
     """
     Orchestrates the flatfielding process.
     """
@@ -65,9 +65,14 @@ def flatfield_images(data: FlatfieldingData):
     recording_start_time_str = data.metadata['recording_start_time'].strftime("%H%M%S%f")[:-3]
     
     for i in range(0, total_images, data.batch_size):
+        if stop_check and stop_check():
+            print("[FLATFIELDING]: Stop requested. Aborting flatfielding.")
+            break
         batch_data = image_data[i:i + data.batch_size]
 
         for image_path, image_array in batch_data:
+            if stop_check and stop_check():
+                break
             # Flatfield the image
             flatfielded_image = flatfield_image(image_array, average_image, data.normalization_factor)
 
@@ -93,10 +98,11 @@ def flatfield_images(data: FlatfieldingData):
         progress = min(i + data.batch_size, total_images)
         print(f"[PROGRESS] {progress}/{total_images}")
 
-    # Hardcode a final, completed progress bar to bypass async issues
-    bar = f"[{'#' * 40}]"
-    total_str = str(total_images)
-    progress_bar = f"[FLATFIELDING]: {bar} 100% | {total_str}/{total_str}"
-    print(progress_bar, flush=True)
+    # If stopped early, do not emit a misleading 100% bar
+    if not (stop_check and stop_check()):
+        bar = f"[{'#' * 40}]"
+        total_str = str(total_images)
+        progress_bar = f"[FLATFIELDING]: {bar} 100% | {total_str}/{total_str}"
+        print(progress_bar, flush=True)
 
     print(f"[FLATFIELDING]: {success_count} files saved to {data.output_path}")

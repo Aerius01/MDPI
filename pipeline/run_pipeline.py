@@ -96,12 +96,12 @@ def execute_pipeline(run_config: SimpleNamespace, stop_check=None):
 
     # 2) Flatfielding
     print("[PIPELINE]: Running flatfielding...")
-    run_flatfielding(run_config, depth_df)
+    run_flatfielding(run_config, depth_df, stop_check=stop_check)
     if stop_check and stop_check(): return
 
     # 3) Object detection
     print("[PIPELINE]: Running object detection...")
-    object_data_df = run_detection(run_config, depth_df)
+    object_data_df = run_detection(run_config, depth_df, stop_check=stop_check)
     if stop_check and stop_check(): return
 
     # 4) Classification

@@ -235,7 +235,7 @@ button:disabled {
     color: #cfe2ff;
     padding: 12px;
     overflow: auto;
-    overflow-x: hidden;
+    overflow-x: auto;
     border-radius: 10px;
     border: 1px solid var(--border);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -246,6 +246,24 @@ button:disabled {
 #log-container pre {
     margin: 0;
     padding: 0;
+    /* Do not wrap at all; rely on horizontal scroll for long lines */
+    white-space: pre;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
+}
+
+/* Provide end padding when scrolled fully right so text doesn't hug the edge */
+#log-container pre::after {
+    content: '';
+    display: inline-block;
+    width: 14px;
+    /* matches container padding for a comfortable buffer */
+}
+
+/* Keep the ASCII progress bar unbroken on a single line */
+#progress-line {
+    white-space: pre;
 }
 
 .actions {

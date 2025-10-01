@@ -27,6 +27,7 @@ class MappedImageRegions:
 
 def _detect_objects(
     data: DetectionData,
+    stop_check=None,
 ) -> pd.DataFrame:
     """
     Run the object detection process over flatfielded images and save outputs.
@@ -42,6 +43,9 @@ def _detect_objects(
     total_images = len(image_paths)
 
     for i in range(0, total_images, data.batch_size):
+        if stop_check and stop_check():
+            print("[DETECTION]: Stop requested. Aborting detection.")
+            break
         batch_end = i + data.batch_size
         batch_image_paths = image_paths[i:batch_end]
 
@@ -53,8 +57,12 @@ def _detect_objects(
         mapped_regions_batch = _detect_objects_in_batch(batch_images, batch_binary_images, batch_image_paths, data)
 
         for mapped_region in mapped_regions_batch:
+            if stop_check and stop_check():
+                break
             process_vignette_generator = _process_vignette(mapped_region, data.output_path)
             for region_data, vignette_img, vignette_path in process_vignette_generator:
+                if stop_check and stop_check():
+                    break
                 all_region_data.append(region_data)
                 cv2.imwrite(vignette_path, vignette_img)
                 output_count += 1
@@ -62,14 +70,14 @@ def _detect_objects(
         progress = min(batch_end, total_images)
         print(f"[PROGRESS] {progress}/{total_images}")
 
-    # Hardcode a final, completed progress bar to bypass async issues
-    bar = f"[{'#' * 40}]"
-    total_str = str(total_images)
-    progress_bar = f"[DETECTION]: {bar} 100% | {total_str}/{total_str}"
-    print(progress_bar, flush=True)
+    # Only emit a full progress bar if we were not stopped early
+    if not (stop_check and stop_check()):
+        bar = f"[{'#' * 40}]"
+        total_str = str(total_images)
+        progress_bar = f"[DETECTION]: {bar} 100% | {total_str}/{total_str}"
+        print(progress_bar, flush=True)
 
     combined_df = _create_dataframe(all_region_data, data.depth_profiles_df)
-    
     print(f"[DETECTION]: {output_count} vignettes saved to {data.output_path}")
 
     return combined_df

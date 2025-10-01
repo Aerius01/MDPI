@@ -16,7 +16,7 @@ const ansiRegex = /\u001B\[[0-?]*[ -\/]*[@-~]/g;
 // 4) Else fall back to :latest
 const GHCR_OWNER = (process.env.MDPI_GHCR_OWNER || 'aerius01').toLowerCase();
 const GHCR_IMAGE = 'mdpi-pipeline';
-const PULL_POLICY = (process.env.MDPI_PULL_POLICY || 'if-not-present').toLowerCase(); // always | if-not-present | never
+const PULL_POLICY = (process.env.MDPI_PULL_POLICY || 'always').toLowerCase(); // always | if-not-present | never
 
 function readGitBranch() {
     try {
@@ -71,6 +71,7 @@ let setupWindow = null; // Window for setup progress
 let backendContainerId = null;
 let logStreamProcess = null;
 let currentModule = 'PIPELINE';
+let isStopInFlight = false;
 
 function createSetupWindow() {
     setupWindow = new BrowserWindow({
@@ -182,18 +183,19 @@ function logCommandOutput(message) {
     }
 }
 
-function runCommand(cmd, args) {
+function runCommand(cmd, args, opts = {}) {
+    const { silent = false } = opts;
     return new Promise((resolve, reject) => {
         const child = spawn(cmd, args, { shell: process.platform === 'win32' });
         let stdout = '';
         let stderr = '';
         child.stdout.on('data', (d) => {
             stdout += d.toString();
-            logCommandOutput(d.toString());
+            if (!silent) logCommandOutput(d.toString());
         });
         child.stderr.on('data', (d) => {
             stderr += d.toString();
-            logCommandOutput(d.toString());
+            if (!silent) logCommandOutput(d.toString());
         });
         child.on('close', (code) => {
             if (code === 0) {
@@ -375,7 +377,7 @@ async function stopBackendContainer() {
 }
 
 async function ensureImage() {
-    log(`Checking for Docker image: ${DOCKER_IMAGE} (pullPolicy=${PULL_POLICY})...`);
+    log(`Image resolution: base=${DOCKER_IMAGE} (policy=${PULL_POLICY})`);
 
     // Development image is built locally
     if (DOCKER_IMAGE === 'mdpi-local:dev') {
@@ -408,13 +410,13 @@ async function ensureImage() {
 
     const imageExistsLocally = (ref) => imageExists(ref);
     const tryPull = async (ref) => {
-        log(`Attempting to pull ${ref} from registry...`);
+        log(`Pulling image from registry: ${ref} ...`);
         try {
             await runCommand('docker', ['pull', ref]);
-            log(`Successfully pulled image ${ref}.`);
+            log(`Pulled: ${ref}`);
             return true;
         } catch (pullError) {
-            log(`Warning: pull failed for ${ref}: ${pullError.message}`);
+            log(`Pull failed (${ref}): ${pullError.message}`);
             lastError = pullError;
             return false;
         }
@@ -426,9 +428,10 @@ async function ensureImage() {
             if (pulled) return;
         }
         // Fallback to any local candidate
+        log('Falling back to any local candidate present...');
         for (const ref of candidates) {
             if (await imageExistsLocally(ref)) {
-                log(`Using existing local image ${ref} (offline or registry missing tag).`);
+                log(`Using existing local image: ${ref}`);
                 return;
             }
         }
@@ -437,20 +440,24 @@ async function ensureImage() {
 
     if (PULL_POLICY === 'never') {
         for (const ref of candidates) {
+            log(`Checking locally for image: ${ref} ...`);
             if (await imageExistsLocally(ref)) {
-                log(`Image ${ref} found locally (pull policy: never).`);
+                log(`Found locally: ${ref}`);
                 return;
             }
+            log(`Not present locally: ${ref}`);
         }
         throw new Error(`No candidate image present locally and pulls are disabled (MDPI_PULL_POLICY=never): ${candidates.join(', ')}`);
     }
 
     // if-not-present
     for (const ref of candidates) {
+        log(`Checking locally for image: ${ref} ...`);
         if (await imageExistsLocally(ref)) {
-            log(`Image ${ref} found locally (pull policy: if-not-present).`);
+            log(`Found locally: ${ref}`);
             return;
         }
+        log(`Not present locally: ${ref}`);
     }
     for (const ref of candidates) {
         const pulled = await tryPull(ref);
@@ -469,8 +476,9 @@ async function startBackendContainer() {
         log(`Starting backend container...`);
         await ensureImage(); // Build or pull image
 
-        // Stop container if it exists but is not running
-        await runCommand('docker', ['rm', CONTAINER_NAME]).catch(() => { });
+        // Remove any stale stopped container (ignore if not present)
+        log('Removing any existing stopped container (if any)...');
+        await runCommand('docker', ['rm', CONTAINER_NAME], { silent: true }).catch(() => { });
 
         const uid = typeof process.getuid === 'function' ? process.getuid() : undefined;
         const gid = typeof process.getgid === 'function' ? process.getgid() : undefined;
@@ -490,14 +498,15 @@ async function startBackendContainer() {
             ...userArgs,
             DOCKER_IMAGE
         ]);
-        log(`Backend container started with ID: ${containerId}`);
+        log(`Backend container started. ID=${containerId}`);
     }
 
     if (containerId) {
         // Wait for the server to be healthy
         log('Waiting for backend server to become healthy...');
-        let retries = 30; // Increased retries
+        let retries = 90; // allow up to 90 seconds for cold starts
         let healthy = false;
+        let waited = 0;
         while (retries > 0) {
             try {
                 const res = await fetch(`${SERVER_URL}/health`);
@@ -511,6 +520,10 @@ async function startBackendContainer() {
             }
             await new Promise(resolve => setTimeout(resolve, 1000));
             retries--;
+            waited++;
+            if (waited % 5 === 0) {
+                log(`Still waiting for server health... (${waited}s elapsed)`);
+            }
         }
 
         if (!healthy) {
@@ -624,19 +637,28 @@ ipcMain.handle('stop-pipeline', async () => {
     if (!backendContainerId) {
         return { ok: false, error: 'Backend is not running.' };
     }
+    if (isStopInFlight) {
+        return { ok: true };
+    }
     try {
-        log('Sending stop signal to backend...');
+        isStopInFlight = true;
         const response = await fetch(`${SERVER_URL}/stop`, {
             method: 'POST'
         });
 
         if (response.ok) {
-            log('Stop signal acknowledged by backend. Pipeline stopped.');
             mainWindow?.webContents.send('completed', { code: 'stopped' });
             return { ok: true };
         } else {
-            const error = await response.json();
-            log(`Backend failed to stop gracefully: ${error.error}`);
+            let errorMsg = 'Unknown error';
+            try {
+                const data = await response.json();
+                errorMsg = data?.error || JSON.stringify(data);
+            } catch (_e) {
+                const text = await response.text();
+                errorMsg = text?.slice(0, 500) || 'Non-JSON error response';
+            }
+            log(`Backend failed to stop gracefully: ${errorMsg}`);
             log('Falling back to a container restart to ensure a clean state.');
             await stopBackendContainer();
             mainWindow?.webContents.send('log', 'Restarting container...');
@@ -663,6 +685,8 @@ ipcMain.handle('stop-pipeline', async () => {
             mainWindow?.webContents.send('completed', { code: 'error' });
             return { ok: false, error: restartError.message };
         }
+    } finally {
+        isStopInFlight = false;
     }
 });
 

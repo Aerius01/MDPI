@@ -4,7 +4,7 @@ from .flatfielding_data import process_arguments
 from .flatfielding import flatfield_images
 
 
-def run_flatfielding(run_config: SimpleNamespace, depth_df: pd.DataFrame):
+def run_flatfielding(run_config: SimpleNamespace, depth_df: pd.DataFrame, stop_check=None):
     """Run flatfielding."""
     data = process_arguments(run_config, depth_df)
-    flatfield_images(data)
+    flatfield_images(data, stop_check=stop_check)

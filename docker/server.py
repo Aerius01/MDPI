@@ -2,6 +2,7 @@ import os
 import sys
 from flask import Flask, request, jsonify
 import multiprocessing
+import threading
 
 # Add project root to sys.path to allow module imports
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -19,9 +20,11 @@ CONTAINER_HOME_DIR = '/host_home'
 
 # --- State ---
 pipeline_process = None
+pipeline_lock = threading.Lock()
+pipeline_stop_event = None
 
 
-def sequential_pipeline_worker(input_dirs, config, model_dir, host_home_dir):
+def sequential_pipeline_worker(input_dirs, config, model_dir, host_home_dir, stop_event):
     """
     The target function for the pipeline thread.
     It validates, sets up, and executes the pipeline for each input directory sequentially.
@@ -30,6 +33,8 @@ def sequential_pipeline_worker(input_dirs, config, model_dir, host_home_dir):
     print("[SEPARATOR]")
 
     for i, host_path in enumerate(input_dirs):
+        if stop_event and stop_event.is_set():
+            break
         print(f"[PIPELINE]: Starting run {i + 1}/{total_runs} → '{host_path}'")
         try:
             container_path = host_path
@@ -46,13 +51,19 @@ def sequential_pipeline_worker(input_dirs, config, model_dir, host_home_dir):
                 img_width=config.get('image_width_cm') / 10.0,
             )
 
-            execute_pipeline(run_config)
-            print(f"[PIPELINE]: Run {i + 1}/{total_runs} completed successfully")
+            execute_pipeline(run_config, stop_check=(stop_event.is_set if stop_event else None))
+
+            if not (stop_event and stop_event.is_set()):
+                print(f"[PIPELINE]: Run {i + 1}/{total_runs} completed successfully")
         except Exception as e:
             print(f"[PIPELINE]: Error during run {i + 1}/{total_runs} for '{host_path}': {e}")
             # Continue to the next run even if one fails
         print("[SEPARATOR]")
-    print("[PIPELINE]: All steps completed successfully!")
+            
+    if stop_event and stop_event.is_set():
+        print("[PIPELINE]: All runs aborted.")
+    else:
+        print("[PIPELINE]: All runs completed successfully!")
 
 
 @app.route('/validate', methods=['POST'])
@@ -114,9 +125,11 @@ def validate():
 
 @app.route('/run', methods=['POST'])
 def run():
-    global pipeline_process
-    if pipeline_process and pipeline_process.is_alive():
-        return jsonify({"ok": False, "error": "Pipeline is already running."}), 409
+    global pipeline_process, pipeline_stop_event
+    # Ensure only one caller can check/start at a time
+    with pipeline_lock:
+        if pipeline_process and pipeline_process.is_alive():
+            return jsonify({"ok": False, "error": "Pipeline is already running."}), 409
 
     data = request.get_json()
     input_dirs = data.get('input_paths')
@@ -128,12 +141,14 @@ def run():
 
     try:
         # Launch the pipeline in a separate process so it can be terminated
-        pipeline_process = multiprocessing.Process(
-            target=sequential_pipeline_worker,
-            args=(input_dirs, config, model_dir, HOST_HOME_DIR)
-        )
-        pipeline_process.daemon = True
-        pipeline_process.start()
+        with pipeline_lock:
+            pipeline_stop_event = multiprocessing.Event()
+            pipeline_process = multiprocessing.Process(
+                target=sequential_pipeline_worker,
+                args=(input_dirs, config, model_dir, HOST_HOME_DIR, pipeline_stop_event)
+            )
+            pipeline_process.daemon = True
+            pipeline_process.start()
 
         return jsonify({"ok": True})
     except Exception as e:
@@ -142,17 +157,32 @@ def run():
 
 @app.route('/stop', methods=['POST'])
 def stop():
-    global pipeline_process
-    if pipeline_process and pipeline_process.is_alive():
-        print('[PIPELINE]: Terminating pipeline process...')
-        pipeline_process.terminate()  # Send SIGTERM
-        pipeline_process.join(timeout=10) # Wait for process to exit
-        if pipeline_process.is_alive():
-            print('[PIPELINE]: Process did not terminate gracefully, killing.')
-            pipeline_process.kill() # Force kill if it doesn't respond
+    global pipeline_process, pipeline_stop_event
+    # Make stop idempotent and thread-safe
+    with pipeline_lock:
+        proc = pipeline_process
+        if proc and proc.is_alive():
+            # Request cooperative stop first
+            if pipeline_stop_event:
+                print('[PIPELINE]: Stop request received.')
+                pipeline_stop_event.set()
+            # Wait a short while for graceful shutdown
+            proc.join(timeout=5)
+            if proc.is_alive():
+                print('[PIPELINE]: Terminating pipeline process...')
+                proc.terminate()  # Send SIGTERM
+                proc.join(timeout=10)  # Wait for process to exit
+            if proc.is_alive():
+                print('[PIPELINE]: Process did not terminate gracefully, killing.')
+                proc.kill()  # Force kill if it doesn't respond
+            pipeline_process = None
+            pipeline_stop_event = None
+            return jsonify({"ok": True, "message": "Pipeline stopped."})
+
+        # Already stopped (idempotent success)
         pipeline_process = None
-        return jsonify({"ok": True, "message": "Pipeline stopped."})
-    return jsonify({"ok": False, "error": "Pipeline not running."})
+        pipeline_stop_event = None
+        return jsonify({"ok": True, "message": "Pipeline already stopped."})
 
 
 @app.route('/health', methods=['GET'])
