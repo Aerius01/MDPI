@@ -267,8 +267,10 @@ async function startLogStream(containerId) {
         const lines = text.split(/(\r\n|\n|\r)/);
         const progressRegex = /\[PROGRESS\]\s+(\d+)\/(\d+)/;
         const moduleRegex = /\[([A-Z_]+)\]/;
-        const completionRegex = /\[PIPELINE\]: All steps completed successfully!/;
-        const errorRegex = /\[PIPELENE\]: Error:/;
+        // Recognize the canonical success variant emitted by the backend
+        const completionRegex = /\[PIPELINE\]:\s+All runs completed successfully!?/;
+        // Fix typo and match pipeline error lines
+        const errorRegex = /\[PIPELINE\]:\s*Error:/;
 
         for (const line of lines) {
             let trimmedLine = line.trim();
