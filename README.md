@@ -82,7 +82,7 @@ See `electron/main.js` for the user interface lifecycle and log streaming, `dock
   }
 }}%%
 
-flowchart TD
+flowchart LR
     subgraph User["🖥️ User Interface"]
         UI["<b>Electron UI</b><br/>Renderer Process"]
     end
