@@ -6,14 +6,14 @@
 ![electron](https://img.shields.io/badge/electron-31-47848F?logo=electron&logoColor=white)
 ![python](https://img.shields.io/badge/python-3.11-3776AB?logo=python&logoColor=white)
 ![docker](https://img.shields.io/badge/docker-required-2496ED?logo=docker&logoColor=white)
-![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
+![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-c2185b)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 </div>
 
 ### Description
 
-MDPI is both the name of the type of camera that inspired this repository, and a desktop application for running a multi-stage plankton imaging pipeline. The UI is built with Electron and orchestrates a Dockerized Python/Flask backend that validates inputs and executes the processing steps end‑to‑end: depth profiling, flatfielding, object detection, object classification, and concentration plotting.
+This multi-stage plankton imaging pipeline was created to process the Leibniz IGB's MDPI camera data, and so inspired this repository's name. The pipeline will work with any image data, but the processing assumes the context that the image data represents a descending water column profile, captured at a stable framerate. The UI is built with Electron and orchestrates a Dockerized Python/Flask backend that validates inputs and executes the processing steps end‑to‑end: depth profiling, flatfielding, object detection, object classification, and concentration plotting. For more information on the processing steps, navigate to the README file in the `/pipeline` folder.
 
 The app automatically provisions the backend container, streams live logs and progress, and allows starting/stopping the pipeline across one or more input directories from a friendly GUI.
 
@@ -58,29 +58,62 @@ See `electron/main.js` for the user interface lifecycle and log streaming, `dock
 ### Architecture
 
 ```mermaid
-flowchart LR
-    subgraph User
-        UI[Electron UI]
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "primaryColor": "#E3F2FD",
+    "primaryTextColor": "#1565C0",
+    "primaryBorderColor": "#1976D2",
+    "secondaryColor": "#F3E5F5",
+    "secondaryTextColor": "#6A1B9A",
+    "secondaryBorderColor": "#7B1FA2",
+    "tertiaryColor": "#E8F5E9",
+    "tertiaryTextColor": "#2E7D32",
+    "tertiaryBorderColor": "#388E3C",
+    "lineColor": "#546E7A",
+    "edgeLabelBackground": "#FFFFFF",
+    "fontSize": "14px",
+    "fontFamily": "ui-sans-serif, system-ui, sans-serif"
+  },
+  "flowchart": {
+    "nodeSpacing": 50,
+    "rankSpacing": 60,
+    "curve": "basis"
+  }
+}}%%
+
+flowchart TD
+    subgraph User["🖥️ User Interface"]
+        UI["<b>Electron UI</b><br/>Renderer Process"]
     end
 
-    subgraph Host
-        UI -- IPC --> Main["Electron Main Process<br/>(electron/main.js)"]
-        Main -- Docker CLI --> Docker[(Docker Daemon)]
+    subgraph Host["💻 Host System"]
+        direction LR
+        Main["<b>Electron Main</b><br/>electron/main.js"]
+        Docker[("<b>Docker Daemon</b><br/>Container Runtime")]
+        HostFS[("<b>Host Filesystem</b><br/>Shared Storage")]
     end
 
-    subgraph Container[Backend Container]
-        Server["Flask API<br/>(docker/server.py)"]
-        Pipeline["Python Pipeline<br/>(pipeline/* modules)"]
-        Server -- /validate,/run,/stop --> Pipeline
+    subgraph Container["🐳 Backend Container"]
+        direction TB
+        Server["<b>Flask API</b><br/>docker/server.py<br/>:5001"]
+        Pipeline["<b>Python Pipeline</b><br/>pipeline/* modules"]
     end
 
-    Docker -. run/stop, logs .-> Main
-    Main <-- HTTP :5001 --> Server
-    Pipeline -- Filesystem mounts --> Host
+    UI -.->|"IPC Events"| Main
+    Main -->|"Docker CLI"| Docker
+    Main <-.->|"HTTP :5001"| Server
+    Docker -->|"Initializes"| Container
+    Server -->|"/validate<br/>/run /stop"| Pipeline
+    Pipeline <-->|"Volume Mount"| HostFS
 
-    Note["Main manages image resolution, container lifecycle,<br/>health checks, log streaming, and forwards UI actions."]
-    Note --- Main
-    Note --- Server
+    classDef userStyle fill:#E3F2FD,stroke:#1976D2,stroke-width:3px,color:#1565C0
+    classDef hostStyle fill:#FFF3E0,stroke:#F57C00,stroke-width:2px,color:#E65100
+    classDef containerStyle fill:#E8F5E9,stroke:#388E3C,stroke-width:3px,color:#2E7D32
+    
+    class UI userStyle
+    class Main,Docker,HostFS hostStyle
+    class Server,Pipeline containerStyle
 ```
 
 #### Responsibilities
@@ -88,6 +121,8 @@ flowchart LR
 - **Electron Main**: Verifies Docker, resolves/pulls/builds image, runs container, streams logs, proxies API
 - **Flask Server**: Validates inputs, coordinates sequential pipeline execution, health endpoint
 - **Pipeline Modules**: Depth profiling, flatfielding, detection, classification, plotting
+
+The entire architecture runs on the host system, and so even though the Python logic is dockerized within a backend container, that container can directly access and manipulate files on the host system (your system) by mounting your file system. What this means is that the potentially large amounts of image data do not need to be transferred over the network, it can instead be assessed in-place.
 
 ---
 
@@ -261,10 +296,27 @@ cd [..]/MDPI/pipeline
 python3 run_pipeline.py -i <your-input-folder> -m ./model
 ```
 
-**Notes:**
-- The input directory must contain raw MDPI images and exactly one CSV pressure file.
-- The model directory should contain TensorFlow checkpoints (`model.ckpt.*`).
+#### Expected Input and CSV File Requirements
 
+- **Input folder**:
+  - Must exist
+  - Must contain at least one image file
+  - Must contain at most one `.csv` pressure sensor file
+
+- **Image files**:
+  - Naming convention: `<any-other-characters>_YYYYmmdd_HHMMSSfff_replicate.ext`, where `HH` refers to the 24-hour-clock notation, and `fff` refers to milliseconds
+  - The `YYYYmmdd_HHMMSSfff` timestamp refers to the start datetime of the recording
+  - The timestamp must be identical across all images from the same run
+
+- **Pressure sensor `.csv`**:
+  - Exactly one `.csv` file is allowed in the input folder
+  - The file must follow either the "old" or the "new" format
+  - Samples for these formats are included in this repository under `/sample-files`
+
+- **Model Directory**:
+  - The model directory is already bundled with the repository under `/pipeline/model`
+  - It is automatically extracted by Electron, but needs to be manually specified when using the CLI
+  - The default state of the directory has all of the required files to pass the internal validation checks
 ---
 
 ### Support
