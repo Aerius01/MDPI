@@ -122,7 +122,7 @@ flowchart LR
 - **Flask Server**: Validates inputs, coordinates sequential pipeline execution, health endpoint
 - **Pipeline Modules**: Depth profiling, flatfielding, detection, classification, plotting
 
-The entire architecture runs on the host system, and so even though the Python logic is dockerized within a backend container, that container can directly access and manipulate files on the host system (your system) by mounting your file system. What this means is that the potentially large amounts of image data do not need to be transferred over the network, it can instead be assessed in-place.
+The entire architecture runs locally on your system. Therefore, even though the Python logic is dockerized within a backend container, that container can directly access and manipulate files on the host system (your system) by mounting said file system. What this means is that the potentially large amounts of image data do not need to be transferred over the network, it can instead be assessed in-place.
 
 ---
 
@@ -205,7 +205,7 @@ On launch, the Electron app will:
 - Verify that Docker is installed and the daemon is reachable (AKA, Docker is running)
 - Resolve the backend image (which is where the Python will run) by:
   - Using `MDPI_DOCKER_IMAGE` if a value was set for it on the command line
-  - If not (which is the standard), by pulling a Docker image from the GitHub registry associated with the GitHub repository. The Docker image that is pulled if formatted according to: `ghcr.io/<owner>/mdpi-pipeline:<branch>` where `<owner>` comes from `MDPI_GHCR_OWNER` (default `aerius01`) and `<branch>` is the current git branch or `latest`.
+  - If not (which is the standard), by pulling a Docker image from the GitHub registry associated with the GitHub repository. The Docker image that is pulled is formatted according to: `ghcr.io/<owner>/mdpi-pipeline:<branch>` where `<owner>` comes from `MDPI_GHCR_OWNER` (default `aerius01`) and `<branch>` is the current git branch or `latest`.
   - If offline, by falling back to building `mdpi-local:dev` from the local `docker/Dockerfile` if configured properly.
 - Start a container based on the resolved Docker image, exposing `http://localhost:5001` and streaming logs to the UI
 
@@ -298,18 +298,20 @@ python3 run_pipeline.py -i <your-input-folder> -m ./model
 
 #### Expected Input and CSV File Requirements
 
+Regardless as to the method of usage, the following is always required of the input arguments.
+
 - **Input folder**:
   - Must exist
   - Must contain at least one image file
-  - Must contain at most one `.csv` pressure sensor file
+  - Must contain at most one `.csv` file (assumed to be the pressure sensor .csv file)
 
 - **Image files**:
   - Naming convention: `<any-other-characters>_YYYYmmdd_HHMMSSfff_replicate.ext`, where `HH` refers to the 24-hour-clock notation, and `fff` refers to milliseconds
   - The `YYYYmmdd_HHMMSSfff` timestamp refers to the start datetime of the recording
   - The timestamp must be identical across all images from the same run
+  - The replicate is a unique ID (integer)
 
 - **Pressure sensor `.csv`**:
-  - Exactly one `.csv` file is allowed in the input folder
   - The file must follow either the "old" or the "new" format
   - Samples for these formats are included in this repository under `/sample-files`
 
@@ -376,4 +378,4 @@ DE 136785011
 
 **Editorial responsibility**
 
-Editorial responsibility for the [list of online services provided] of the Forschungsverbund Berlin e. V. lies with the managing director, Martin Böhnke, for the non-scientific content and the director (a. i.) of IGB, Professor Sonja Jähnig, for the scientific content.
+Editorial responsibility for this repository of the Forschungsverbund Berlin e. V. lies with the managing director, Martin Böhnke, for the non-scientific content and the director (a. i.) of IGB, Professor Sonja Jähnig, for the scientific content.
