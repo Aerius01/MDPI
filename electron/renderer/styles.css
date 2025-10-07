@@ -9,6 +9,12 @@
     --red: #ef4444;
     --green: #22c55e;
     --orange: #f97316;
+
+    /* Semantic status colors */
+    --success: var(--green);
+    --error: var(--red);
+    --warning: var(--orange);
+    --info: var(--accent);
 }
 
 *,
@@ -167,6 +173,18 @@ button:disabled {
     cursor: not-allowed;
 }
 
+/* Focus indicators for accessibility */
+button:focus-visible,
+input:focus-visible,
+.help-tooltip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+input.invalid {
+    border-color: var(--red);
+}
+
 .btn-primary {
     background: var(--accent);
     border-color: var(--accent);
@@ -187,6 +205,29 @@ button:disabled {
     border-color: #b91c1c;
 }
 
+.btn-primary.loading {
+    position: relative;
+    color: transparent;
+}
+
+.btn-primary.loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    top: 50%;
+    left: 50%;
+    margin: -8px 0 0 -8px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: white;
+    animation: button-spin 0.6s linear infinite;
+}
+
+@keyframes button-spin {
+    to { transform: rotate(360deg); }
+}
+
 
 .input-row {
     display: grid;
@@ -201,6 +242,23 @@ button:disabled {
     border: 1px solid var(--border);
     border-radius: 8px;
     margin-bottom: 10px;
+    position: relative;
+}
+
+.input-row-container.validating::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    animation: loading-sweep 1.5s ease-in-out infinite;
+}
+
+@keyframes loading-sweep {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
 }
 
 .validation-result p {
@@ -214,6 +272,19 @@ button:disabled {
 
 .validation-result .invalid {
     color: var(--red);
+}
+
+.validation-result .warning {
+    color: var(--orange);
+}
+
+.validation-result .error-hint {
+    display: block;
+    margin-left: 24px;
+    color: var(--muted);
+    font-size: 12px;
+    font-style: italic;
+    margin-top: 2px;
 }
 
 .metadata-grid {

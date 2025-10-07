@@ -282,6 +282,15 @@ async function startLogStream(containerId) {
             trimmedLine = trimmedLine.replace(/\/app/g, REPO_ROOT);
             trimmedLine = trimmedLine.replace(/\/host_home/g, USER_HOME);
 
+            // Replace input volume mount paths with user's actual paths
+            for (const mapping of inputPathMappings) {
+                // Use regex to match the container path as a whole path component
+                // This prevents partial matches like /input0 matching /input01
+                const escapedContainerPath = mapping.containerPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const pathRegex = new RegExp(escapedContainerPath + '(?=/|$)', 'g');
+                trimmedLine = trimmedLine.replace(pathRegex, mapping.hostPath);
+            }
+
             // Suppress spurious MLIR and ABSL messages
             if (trimmedLine.includes('MLIR V1 optimization pass is not enabled') ||
                 trimmedLine.includes('All log messages before absl::InitializeLog() is called are written to STDERR')) {
@@ -469,6 +478,9 @@ async function ensureImage() {
     throw new Error(`Could not pull any candidate images (${candidates.join(', ')}).`);
 }
 
+// Store input directory mappings globally so log stream can access them
+let inputPathMappings = []; // Array of { hostPath, containerPath } objects
+
 async function startBackendContainer(inputDirectories = []) {
     log('Checking for backend container...');
     let containerId = await isContainerRunning(CONTAINER_NAME);
@@ -500,10 +512,15 @@ async function startBackendContainer(inputDirectories = []) {
 
         if (inputDirectories.length > 0) {
             log(`Mounting ${inputDirectories.length} input director${inputDirectories.length === 1 ? 'y' : 'ies'}...`);
+            // Reset mappings for this run
+            inputPathMappings = [];
             inputDirectories.forEach((dir, index) => {
-                volumeMounts.push('-v', `${dir}:/input${index}`);
+                const containerPath = `/input${index}`;
+                volumeMounts.push('-v', `${dir}:${containerPath}`);
                 envVars.push('-e', `HOST_PATH_${index}=${dir}`);
-                envVars.push('-e', `CONTAINER_PATH_${index}=/input${index}`);
+                envVars.push('-e', `CONTAINER_PATH_${index}=${containerPath}`);
+                // Store mapping for log translation
+                inputPathMappings.push({ hostPath: dir, containerPath });
             });
             envVars.push('-e', `NUM_MOUNTS=${inputDirectories.length}`);
         }
@@ -612,7 +629,7 @@ ipcMain.handle('pick-folder', async (_evt, { title }) => {
     return res.filePaths[0];
 });
 
-ipcMain.handle('validate-path', async (evt, { path: filePath }) => {
+ipcMain.handle('validate-path', async (evt, { path: filePath, inputId }) => {
     try {
         // Quick validation in Node.js for immediate UI feedback
         const quickResult = await quickValidate(filePath);
@@ -632,6 +649,7 @@ ipcMain.handle('validate-path', async (evt, { path: filePath }) => {
         quickResult.warnings.forEach(warn => results.push([true, `Warning: ${warn}`]));
 
         const data = {
+            id: inputId,
             results,
             metadata: quickResult.metadata,
             camera_format: quickResult.metadata.cameraFormat
@@ -642,6 +660,7 @@ ipcMain.handle('validate-path', async (evt, { path: filePath }) => {
 
     } catch (e) {
         const errorResult = {
+            id: inputId,
             results: [[false, `Error validating path: ${e.message}`]],
             metadata: null,
             camera_format: null

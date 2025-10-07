@@ -35,6 +35,8 @@ function updateRunButtonState() {
 }
 
 async function validatePath(id, path) {
+    const container = document.getElementById(`container-${id}`);
+
     if (!path) {
         inputState[id] = { isValid: false, validationResults: [[false, 'Path cannot be empty.']], metadata: null };
         updateRowValidation(id);
@@ -42,8 +44,13 @@ async function validatePath(id, path) {
         return;
     }
 
-    // Call the validation method, but the primary update will be handled by the onValidate listener
-    await window.mdpi.validatePath(path);
+    // Show loading state
+    container.classList.add('validating');
+
+    // Call the validation method with the input ID, the onValidate listener will handle the response
+    await window.mdpi.validatePath(path, id);
+
+    // Loading state will be removed by the onValidate callback
 }
 
 function createInputRow() {
@@ -64,7 +71,14 @@ function createInputRow() {
     const browseBtn = document.createElement('button');
     browseBtn.textContent = 'Browse';
     browseBtn.addEventListener('click', async () => {
+        browseBtn.disabled = true;
+        browseBtn.textContent = 'Browsing...';
+
         const p = await window.mdpi.pickFolder('Select input folder');
+
+        browseBtn.disabled = false;
+        browseBtn.textContent = 'Browse';
+
         if (p) {
             pathInput.value = p;
             validatePath(id, p);
@@ -113,10 +127,33 @@ function updateRowValidation(id) {
     metadataDiv.innerHTML = '';
 
     if (state.validationResults) {
-        state.validationResults.forEach(([isValid, message]) => {
+        state.validationResults.forEach(([isValid, message, severity = 'error']) => {
             const p = document.createElement('p');
-            p.textContent = `${isValid ? '✔' : '❌'} ${message}`;
-            p.className = isValid ? 'valid' : 'invalid';
+            const icon = isValid ? '✔' : (severity === 'warning' ? '⚠' : '❌');
+
+            p.innerHTML = `<strong>${icon}</strong> ${message}`;
+            p.className = isValid ? 'valid' : (severity === 'warning' ? 'warning' : 'invalid');
+
+            // Add action hints for common errors
+            if (!isValid) {
+                if (message.includes('No CSV file')) {
+                    const hint = document.createElement('span');
+                    hint.className = 'error-hint';
+                    hint.textContent = '→ Add a .csv file with pressure sensor data to the folder';
+                    p.appendChild(hint);
+                } else if (message.includes('no image')) {
+                    const hint = document.createElement('span');
+                    hint.className = 'error-hint';
+                    hint.textContent = '→ Add images with naming format: [prefix]_YYYYmmdd_HHMMSSfff_[replicate_id].ext (e.g., img_20240315_143022500_001.tif)';
+                    p.appendChild(hint);
+                } else if (message.includes('Path cannot be empty')) {
+                    const hint = document.createElement('span');
+                    hint.className = 'error-hint';
+                    hint.textContent = '→ Browse or type a folder path containing your images and CSV file';
+                    p.appendChild(hint);
+                }
+            }
+
             validationDiv.appendChild(p);
         });
     }
@@ -195,18 +232,26 @@ runBtn.addEventListener('click', async () => {
         image_width_cm: parseFloat(document.getElementById('image-width').value),
     };
 
+    // Show loading feedback - will remain until pipeline completes
+    runBtn.classList.add('loading');
     runBtn.disabled = true;
     stopBtn.disabled = false;
     setControlsDisabled(true);
 
     const res = await window.mdpi.run(inputPaths, config);
+
     if (!res?.ok) {
         appendLog(String(res?.error || 'Failed to start'));
+        // Remove loading state on error
+        runBtn.classList.remove('loading');
     }
+    // Note: loading state is removed in onCompleted callback when pipeline finishes
 });
 
 stopBtn.addEventListener('click', async () => {
+    stopBtn.disabled = true;
     await window.mdpi.stop();
+    // Note: stopBtn will be re-enabled in onCompleted callback
 });
 
 window.mdpi.onLog((msg) => {
@@ -214,30 +259,19 @@ window.mdpi.onLog((msg) => {
 });
 
 window.mdpi.onValidate((data) => {
-    const { results, metadata } = data;
+    const { id, results, metadata } = data;
     const isValid = results.every(r => r[0]);
 
-    // Find the input element that corresponds to the validated path
-    const inputs = document.querySelectorAll('input[type="text"]');
-    let targetId = null;
-    for (const _input of inputs) {
-        // This assumes the backend returns a path that can be matched, which might need adjustment
-        // For now, let's assume we update the last focused or first invalid input.
-        // A more robust solution might involve passing the input `id` with the validation request.
-        if (Object.keys(inputState).length === 1) {
-            targetId = Object.keys(inputState)[0];
-            break;
+    if (id && inputState.hasOwnProperty(id)) {
+        // Remove loading state
+        const container = document.getElementById(`container-${id}`);
+        if (container) {
+            container.classList.remove('validating');
         }
-    }
 
-    // Fallback or for single-input scenarios
-    if (!targetId && Object.keys(inputState).length > 0) {
-        targetId = Object.keys(inputState)[Object.keys(inputState).length - 1];
-    }
-
-    if (targetId) {
-        inputState[targetId] = { isValid, validationResults: results, metadata };
-        updateRowValidation(targetId);
+        // Update validation state
+        inputState[id] = { isValid, validationResults: results, metadata };
+        updateRowValidation(id);
         updateRunButtonState();
     }
 });
@@ -260,6 +294,8 @@ window.mdpi.onCompleted(({
         }
     }
 
+    // Remove loading spinner from Run button
+    runBtn.classList.remove('loading');
     runBtn.disabled = false;
     stopBtn.disabled = true;
     setControlsDisabled(false);
@@ -306,13 +342,15 @@ function setControlsDisabled(disabled) {
 document.querySelectorAll('.help-tooltip').forEach(tooltipIcon => {
     const tooltipText = tooltipIcon.querySelector('.tooltip-text');
 
-    tooltipIcon.addEventListener('mouseenter', () => {
+    const showTooltip = () => {
         // Reset vertical position to default (above)
         tooltipText.classList.remove('tooltip-below');
 
         // Make it visible to calculate its dimensions
         tooltipText.style.visibility = 'visible';
         tooltipText.style.opacity = '1';
+        tooltipText.setAttribute('aria-hidden', 'false');
+        tooltipIcon.setAttribute('aria-expanded', 'true');
 
         let tooltipRect = tooltipText.getBoundingClientRect();
 
@@ -340,11 +378,32 @@ document.querySelectorAll('.help-tooltip').forEach(tooltipIcon => {
             const overflow = -finalRect.left + 10; // 10px padding
             tooltipText.style.left = `calc(50% + ${overflow}px)`;
         }
-    });
+    };
 
-    tooltipIcon.addEventListener('mouseleave', () => {
+    const hideTooltip = () => {
         tooltipText.style.visibility = 'hidden';
         tooltipText.style.opacity = '0';
+        tooltipText.setAttribute('aria-hidden', 'true');
+        tooltipIcon.setAttribute('aria-expanded', 'false');
+    };
+
+    // Mouse events
+    tooltipIcon.addEventListener('mouseenter', showTooltip);
+    tooltipIcon.addEventListener('mouseleave', hideTooltip);
+
+    // Keyboard events
+    tooltipIcon.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            const isExpanded = tooltipIcon.getAttribute('aria-expanded') === 'true';
+            if (isExpanded) {
+                hideTooltip();
+            } else {
+                showTooltip();
+            }
+        } else if (e.key === 'Escape') {
+            hideTooltip();
+        }
     });
 });
 

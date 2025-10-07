@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('mdpi', {
     pickFolder: (title) => ipcRenderer.invoke('pick-folder', { title }),
-    validatePath: (path) => ipcRenderer.invoke('validate-path', { path }),
+    validatePath: (path, inputId) => ipcRenderer.invoke('validate-path', { path, inputId }),
     run: (inputPaths, config) => ipcRenderer.invoke('run-pipeline', { inputPaths, config }),
     stop: () => ipcRenderer.invoke('stop-pipeline'),
     onLog: (cb) => ipcRenderer.on('log', (_e, msg) => cb(msg)),

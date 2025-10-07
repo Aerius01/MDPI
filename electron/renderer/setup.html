@@ -14,19 +14,19 @@
         <div class="spinner"></div>
         <p>Please wait while the backend is being prepared. If this is your first time running the application, this may
             take a few minutes...</p>
-        <button id="toggle-logs-btn" class="toggle-logs-button">
+        <button id="toggle-logs-btn" class="toggle-logs-button" aria-label="Toggle setup details" aria-expanded="false">
             <span>Show Details</span>
             <span class="chevron"></span>
         </button>
-        <div id="status-container" class="collapsible">
-            <div id="status-messages">
+        <div id="status-container" class="collapsible" role="region" aria-label="Setup progress details">
+            <div id="status-messages" role="log" aria-live="polite">
                 <pre><code></code></pre>
             </div>
         </div>
-        <div id="error-container" style="display: none;">
+        <div id="error-container" style="display: none;" role="alert" aria-live="assertive">
             <h2>Error</h2>
             <p id="error-message"></p>
-            <button id="retry-button">Retry</button>
+            <button id="retry-button" aria-label="Retry setup">Retry</button>
         </div>
     </div>
     <script src="setup-renderer.js"></script>
