@@ -35,8 +35,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const closeButton = document.getElementById('close-btn');
     if (closeButton) {
-        closeButton.addEventListener('click', () => {
+        const handleClose = () => {
             window.api.send('cancel-setup');
+        };
+
+        closeButton.addEventListener('click', handleClose);
+
+        // Add keyboard event handling for accessibility
+        closeButton.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleClose();
+            }
         });
     }
 

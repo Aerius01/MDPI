@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { spawn, exec } from 'node:child_process';
 import os from 'node:os';
+import { quickValidate } from './validation.js';
 
 
 // Minimal ANSI escape code regex for stripping color codes from logs
@@ -468,9 +469,16 @@ async function ensureImage() {
     throw new Error(`Could not pull any candidate images (${candidates.join(', ')}).`);
 }
 
-async function startBackendContainer() {
+async function startBackendContainer(inputDirectories = []) {
     log('Checking for backend container...');
     let containerId = await isContainerRunning(CONTAINER_NAME);
+
+    // If container is already running with different directories, stop it first
+    if (containerId && inputDirectories.length > 0) {
+        log('Restarting container with new input directories...');
+        await stopBackendContainer();
+        containerId = null;
+    }
 
     if (containerId) {
         log(`Container '${CONTAINER_NAME}' is already running.`);
@@ -486,14 +494,32 @@ async function startBackendContainer() {
         const gid = typeof process.getgid === 'function' ? process.getgid() : undefined;
         const userArgs = (uid !== undefined && gid !== undefined) ? ['--user', `${uid}:${gid}`] : [];
 
+        // Build volume mounts for input directories
+        const volumeMounts = [];
+        const envVars = [];
+
+        if (inputDirectories.length > 0) {
+            log(`Mounting ${inputDirectories.length} input director${inputDirectories.length === 1 ? 'y' : 'ies'}...`);
+            inputDirectories.forEach((dir, index) => {
+                volumeMounts.push('-v', `${dir}:/input${index}`);
+                envVars.push('-e', `HOST_PATH_${index}=${dir}`);
+                envVars.push('-e', `CONTAINER_PATH_${index}=/input${index}`);
+            });
+            envVars.push('-e', `NUM_MOUNTS=${inputDirectories.length}`);
+        }
+
+        // Mount model directory (read-only)
+        const modelDir = path.join(REPO_ROOT, 'pipeline', 'model');
+        volumeMounts.push('-v', `${modelDir}:/model:ro`);
+        envVars.push('-e', 'MODEL_DIR=/model');
+
         log('Running container...');
         containerId = await runCommand('docker', [
             'run', '-d', '--rm',
             '--name', CONTAINER_NAME,
             '-p', '5001:5001',
-            // Mount the user's home directory to allow access to any file.
-            '-v', `${USER_HOME}:/host_home`,
-            '-e', `HOST_HOME_DIR=${USER_HOME}`,
+            ...volumeMounts,
+            ...envVars,
             // Set a writable home directory for the non-root user
             '-e', 'HOME=/tmp',
             '-e', 'XDG_CACHE_HOME=/tmp/.cache',
@@ -587,24 +613,39 @@ ipcMain.handle('pick-folder', async (_evt, { title }) => {
 });
 
 ipcMain.handle('validate-path', async (evt, { path: filePath }) => {
-    if (!backendContainerId) {
-        return { results: [[false, 'Backend is not running.']], metadata: null };
-    }
     try {
-        // We need to pass the path as the host sees it.
-        // The server will adapt it for the container.
-        const response = await fetch(`${SERVER_URL}/validate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: filePath })
-        });
+        // Quick validation in Node.js for immediate UI feedback
+        const quickResult = await quickValidate(filePath);
 
-        const data = await response.json();
+        // Convert to format expected by renderer
+        const results = [];
+        if (quickResult.valid) {
+            results.push([true, `Found ${quickResult.metadata.imageCount} image file(s).`]);
+            results.push([true, 'Found one pressure sensor CSV file.']);
+            if (quickResult.metadata.cameraFormat) {
+                results.push([true, `Detected camera format: ${quickResult.metadata.cameraFormat}`]);
+            }
+        } else {
+            quickResult.errors.forEach(err => results.push([false, err]));
+        }
+
+        quickResult.warnings.forEach(warn => results.push([true, `Warning: ${warn}`]));
+
+        const data = {
+            results,
+            metadata: quickResult.metadata,
+            camera_format: quickResult.metadata.cameraFormat
+        };
+
         evt.sender.send('validate-path-result', data);
         return data;
 
     } catch (e) {
-        const errorResult = { results: [[false, `Error validating path: ${e.message}`]], metadata: null };
+        const errorResult = {
+            results: [[false, `Error validating path: ${e.message}`]],
+            metadata: null,
+            camera_format: null
+        };
         evt.sender.send('validate-path-result', errorResult);
         return errorResult;
     }
@@ -612,15 +653,25 @@ ipcMain.handle('validate-path', async (evt, { path: filePath }) => {
 
 
 ipcMain.handle('run-pipeline', async (_evt, { inputPaths, config }) => {
-    if (!backendContainerId) {
-        return { ok: false, error: 'Backend is not running.' };
-    }
     log('Initializing pipeline');
     try {
+        // Restart container with input directories mounted
+        backendContainerId = await startBackendContainer(inputPaths);
+
+        if (!backendContainerId) {
+            return { ok: false, error: 'Failed to start backend container with input directories.' };
+        }
+
+        // Restart log stream to capture pipeline output
+        await startLogStream(backendContainerId);
+
+        // Convert host paths to container paths for the API call
+        const containerPaths = inputPaths.map((_, index) => `/input${index}`);
+
         const response = await fetch(`${SERVER_URL}/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ input_paths: inputPaths, config })
+            body: JSON.stringify({ input_paths: containerPaths, config })
         });
         const resJson = await response.json();
         if (!response.ok) {

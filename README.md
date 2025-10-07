@@ -13,7 +13,7 @@
 
 ### Description
 
-This multi-stage plankton imaging pipeline was created to process the Leibniz IGB's MDPI camera data, and so inspired this repository's name. The pipeline will work with any image data, but the processing assumes the context that the image data represents a descending water column profile, captured at a stable framerate. The UI is built with Electron and orchestrates a Dockerized Python/Flask backend that validates inputs and executes the processing steps end‑to‑end: depth profiling, flatfielding, object detection, object classification, and concentration plotting. For more information on the processing steps, navigate to the README file in the `/pipeline` folder.
+This multi-stage plankton imaging pipeline was created to process the Leibniz IGB's MDPI camera data, and so inspired this repository's name. The pipeline will work with any image data, but the processing assumes the context that the image data represents a descending water column profile, captured at a stable framerate. The UI is built with Electron and orchestrates a Dockerized Python/Flask backend that validates inputs and executes the processing steps end‑to‑end: depth profiling, flatfielding, object detection, object classification, and concentration plotting. For more information on the processing steps, navigate to the individual module README files located in the `/pipeline/modules/*` folders.
 
 The app automatically provisions the backend container, streams live logs and progress, and allows starting/stopping the pipeline across one or more input directories from a friendly GUI.
 
@@ -140,7 +140,7 @@ All of Linux, macOS, and Windows are supported! That being said, certain prerequ
 
 #### Clone this Repository
 
-The first step is to get a copy of the code by cloning the repository locally. Choose a directory for the project, and then run any of:
+The first step is to get a copy of the code by cloning the repository locally. Open a bash terminal (such as the command prompt), navigate to your chosen directory to house the project (use the `cd` command), and then run any of:
 
 ```bash
 # Using HTTPS
@@ -154,10 +154,11 @@ cd MDPI
 # Optionally verify current branch (used for default image tag resolution)
 git status
 ```
+From here there are two options. You can either set-up the Electron UI (recommended) or build a conda environment to interact with the code through the terminal directly
 
 #### Option 1: Set up the Electron UI
 
-Navigate to the project's 'electron' subfolder and run `npm install`:
+Navigate to the project's `electron` subfolder and run `npm install`:
 
 ```bash
 cd [...]/MDPI/electron
@@ -199,17 +200,19 @@ This will package the app into an executable file and output it to `[...]/MDPI/e
 
 Open the file as you normally would a standard executable for your OS.
 
-The architecture of the code is such that all the processing logic is offloaded to a local docker container. Naturally then, the app only works if this container is created.
+#### Docker Container
+
+The architecture of the code is such that all the processing logic is offloaded to a local docker container. This container needs to be ensured for the app to run.
 
 On launch, the Electron app will:
-- Verify that Docker is installed and the daemon is reachable (AKA, Docker is running)
-- Resolve the backend image (which is where the Python will run) by:
-  - Using `MDPI_DOCKER_IMAGE` if a value was set for it on the command line
-  - If not (which is the standard), by pulling a Docker image from the GitHub registry associated with the GitHub repository. The Docker image that is pulled is formatted according to: `ghcr.io/<owner>/mdpi-pipeline:<branch>` where `<owner>` comes from `MDPI_GHCR_OWNER` (default `aerius01`) and `<branch>` is the current git branch or `latest`.
+- Verify that Docker is installed and that the daemon is reachable (AKA, Docker is running)
+- Resolve the backend image (the 'blueprint' for the container) by:
+  - Using the `MDPI_DOCKER_IMAGE` environmental variable, if a value was set for it on the command line
+  - If this environmental variable is not set (which is the standard), by pulling a Docker image from the GitHub registry associated with the GitHub repository. The Docker image that is pulled is formatted according to: `ghcr.io/<owner>/mdpi-pipeline:<branch>` where `<owner>` comes from the `MDPI_GHCR_OWNER` environmental variable (default `aerius01`) and `<branch>` is the current git branch or `latest`.
   - If offline, by falling back to building `mdpi-local:dev` from the local `docker/Dockerfile` if configured properly.
 - Start a container based on the resolved Docker image, exposing `http://localhost:5001` and streaming logs to the UI
 
-At runtime, the app names the backend container `mdpi-backend-container`.
+At runtime, the app names the backend container `mdpi-backend-container`, regardless as to which image was used.
 
 **Useful environment variables:**
 
@@ -227,14 +230,14 @@ export MDPI_DOCKER_IMAGE=ghcr.io/<owner>/mdpi-pipeline:<tag>
 export MDPI_GIT_BRANCH=<branch-name>
 ```
 
-You can set these environment variables by exporting them (as above) and then starting the Electron UI, or you can pass them together in the same command:
+You can set these environment variables in a bash terminal by exporting them (as above) and then starting the Electron UI, or you can pass them simulatneously in the start command:
 
 ```bash
 cd [...]/MDPI/electron
 MDPI_GIT_BRANCH=<branch-name> npm run start
 ```
 
-Note: By default, the first launch of the Electron UI will pull a backend Docker image from the GitHub Container Registry (MDPI_PULL_POLICY=always), as described above, which requires an internet connection and can take several minutes. This is by far the easiest way! However, if there is no internet available on the first launch, either pre‑pull the image when online or build it locally from the files in this project:
+**Note**: By default, the first launch of the Electron UI will pull a backend Docker image from the GitHub Container Registry (MDPI_PULL_POLICY=always), as described above, which requires an internet connection and can take several minutes. This is by far the easiest way! However, if there is no internet available on the first launch, either pre‑pull the image when online, or you can build it locally from the files in this project:
 
 ```bash
 # Build the local image once
@@ -251,9 +254,11 @@ export MDPI_PULL_POLICY=never
 
 If you see an error akin to:
 
-"The SUID sandbox helper binary was found, but is not configured correctly. 
+```text
+The SUID sandbox helper binary was found, but is not configured correctly. 
 Rather than run without sandboxing I'm aborting now. You need to make sure 
-that /tmp/.mount_[...]/chrome-sandbox is owned by root and has mode 4755."
+that /tmp/.mount_[...]/chrome-sandbox is owned by root and has mode 4755.
+```
 
 Then the fix depends on your situation. If you're running in 'dev' mode, you can simply change the permissions of the file at the path stated in the error message to fix the problem:
 
@@ -265,7 +270,7 @@ sudo chown root [...]/MDPI/electron/node_modules/electron/dist/chrome-sandbox
 sudo chmod 4755 [...]/MDPI/electron/node_modules/electron/dist/chrome-sandbox
 ```
 
-However, if you're running a build, the relevant file will be likely mounted in the `/tmp` directory on launch (with a path similar to `/tmp/.mount_[...]/chrome-sandbox`), and upon failure-to-launch, it'll be deleted. The only remaining recourse is to run Electron with sandbox disabled:
+However, if you're running a build, the file with the permission error is only created when launching the app, and is then deleted once the launch fails. Its permissions therefore cannot be tailored, and the only remaining recourse is to run Electron with sandbox disabled:
 
 ```bash
 # Packaged AppImage

@@ -11,7 +11,9 @@
         "dist": "electron-builder --publish never"
     },
     "dependencies": {
-        "electron-updater": "^6.3.9"
+        "electron-updater": "^6.3.9",
+        "sharp": "^0.33.5",
+        "csv-parser": "^3.0.0"
     },
     "devDependencies": {
         "electron": "31.3.0",

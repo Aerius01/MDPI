@@ -15,7 +15,7 @@ WORKDIR /app
 
 # Use micromamba to create and manage the environment
 COPY docker/environment.yml /app/environment.yml
-RUN micromamba create -f /app/environment.yml && \
+RUN micromamba create -n mdpi-env -f /app/environment.yml && \
     micromamba clean -a -y
 
 # Copy the rest of the application code

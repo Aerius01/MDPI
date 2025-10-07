@@ -1,9 +1,9 @@
 <!doctype html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline';" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self';" />
     <title>MDPI Pipeline</title>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -22,9 +22,9 @@
                     <label for="capture-rate">Capture Rate (Hz)</label>
                     <div class="input-with-help">
                         <input type="number" id="capture-rate" value="2.4">
-                        <span class="help-tooltip">
+                        <span class="help-tooltip" tabindex="0" role="button" aria-expanded="false" aria-describedby="tooltip-capture-rate">
                             ?
-                            <span class="tooltip-text">The capture rate configuration parameter represents the rate at
+                            <span class="tooltip-text" role="tooltip" id="tooltip-capture-rate" aria-hidden="true">The capture rate configuration parameter represents the rate at
                                 which the camera captures images. This is a foundational parameter, as an inaccurately
                                 reported rate will completely skew the matching of depth values to images, leading to
                                 silent, erroneous results.</span>
@@ -35,9 +35,9 @@
                     <label for="image-depth">Image Depth (cm)</label>
                     <div class="input-with-help">
                         <input type="number" id="image-depth" value="10.0">
-                        <span class="help-tooltip">
+                        <span class="help-tooltip" tabindex="0" role="button" aria-expanded="false" aria-describedby="tooltip-image-depth">
                             ?
-                            <span class="tooltip-text">The image depth configuration parameter represents the depth of
+                            <span class="tooltip-text" role="tooltip" id="tooltip-image-depth" aria-hidden="true">The image depth configuration parameter represents the depth of
                                 the camera's field of view into plane. That is to say, the maximum distance into the
                                 image plane at which we are confident we can still accurately identify plankton. This
                                 parameter is used to calculate the volume of water into which binned individuals are
@@ -49,9 +49,9 @@
                     <label for="image-height">Image Height (cm)</label>
                     <div class="input-with-help">
                         <input type="number" id="image-height" value="4.3">
-                        <span class="help-tooltip">
+                        <span class="help-tooltip" tabindex="0" role="button" aria-expanded="false" aria-describedby="tooltip-image-height">
                             ?
-                            <span class="tooltip-text">The image height configuration parameter represents the height of
+                            <span class="tooltip-text" role="tooltip" id="tooltip-image-height" aria-hidden="true">The image height configuration parameter represents the height of
                                 the camera's field of view in metric units. This parameter is used to calculate the
                                 image overlaps, as well as the volume of water into which binned individuals are divided
                                 into when producing the plots at the end of the pipeline.</span>
@@ -62,9 +62,9 @@
                     <label for="image-width">Image Width (cm)</label>
                     <div class="input-with-help">
                         <input type="number" id="image-width" value="4.3">
-                        <span class="help-tooltip">
+                        <span class="help-tooltip" tabindex="0" role="button" aria-expanded="false" aria-describedby="tooltip-image-width">
                             ?
-                            <span class="tooltip-text">The image width configuration parameter represents the width of
+                            <span class="tooltip-text" role="tooltip" id="tooltip-image-width" aria-hidden="true">The image width configuration parameter represents the width of
                                 the camera's field of view in metric units. This parameter is used to calculate the
                                 volume of water into which binned individuals are divided into when producing the plots
                                 at the end of the pipeline.</span>

@@ -123,17 +123,49 @@ function updateRowValidation(id) {
 
     if (state.isValid && state.metadata) {
         const metadata = state.metadata;
-        const keyOrder = ["recording_start", "image_shape", "camera_format"];
-        const displayData = {
-            "recording_start": `${metadata.recording_start_date} ${metadata.recording_start_time}`,
-            "image_shape": `${metadata.image_width_pixels} x ${metadata.image_height_pixels} pixels`,
-            "camera_format": metadata.camera_format || 'N/A'
-        };
 
+        // Build display data from metadata
+        const displayData = {};
+
+        // Recording start - handle both date/time format and ISO string format
+        if (metadata.recordingStart) {
+            // New format from Node.js validation (ISO string)
+            const date = new Date(metadata.recordingStart);
+            displayData.recording_start = date.toLocaleString('en-US', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                fractionalSecondDigits: 3
+            });
+        } else if (metadata.recording_start_date && metadata.recording_start_time) {
+            // Old format from Python validation
+            displayData.recording_start = `${metadata.recording_start_date} ${metadata.recording_start_time}`;
+        }
+
+        // Image shape - handle both formats
+        if (metadata.imageShape) {
+            // New format from Node.js validation
+            displayData.image_shape = `${metadata.imageShape.width} x ${metadata.imageShape.height} pixels`;
+        } else if (metadata.image_width_pixels && metadata.image_height_pixels) {
+            // Old format from Python validation
+            displayData.image_shape = `${metadata.image_width_pixels} x ${metadata.image_height_pixels} pixels`;
+        }
+
+        // Camera format
+        if (metadata.cameraFormat || metadata.camera_format) {
+            displayData.camera_format = metadata.cameraFormat || metadata.camera_format;
+        }
+
+        // Display metadata in grid
+        const keyOrder = ["recording_start", "image_shape", "camera_format"];
         keyOrder.forEach(key => {
             if (displayData[key]) {
                 const keyEl = document.createElement('strong');
-                keyEl.textContent = `${key.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}:`;
+                keyEl.textContent = `${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:`;
                 const valEl = document.createElement('span');
                 valEl.textContent = displayData[key];
                 metadataDiv.appendChild(keyEl);

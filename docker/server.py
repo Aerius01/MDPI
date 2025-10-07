@@ -14,8 +14,17 @@ from pipeline.run_pipeline import validate_inputs_and_setup, execute_pipeline
 
 app = Flask(__name__)
 
-HOST_HOME_DIR = os.environ.get('HOST_HOME_DIR')
-CONTAINER_HOME_DIR = '/host_home'
+# Build path mappings from environment variables
+NUM_MOUNTS = int(os.environ.get('NUM_MOUNTS', 0))
+PATH_MAPPINGS = {}  # host_path -> container_path
+
+for i in range(NUM_MOUNTS):
+    host_path = os.environ.get(f'HOST_PATH_{i}')
+    container_path = os.environ.get(f'CONTAINER_PATH_{i}')
+    if host_path and container_path:
+        PATH_MAPPINGS[host_path] = container_path
+
+MODEL_DIR = os.environ.get('MODEL_DIR', '/model')
 
 
 # --- State ---
@@ -24,7 +33,31 @@ pipeline_lock = threading.Lock()
 pipeline_stop_event = None
 
 
-def sequential_pipeline_worker(input_dirs, config, model_dir, host_home_dir, stop_event):
+def host_to_container_path(host_path):
+    """Convert host path to container path using known mappings."""
+    for host_prefix, container_prefix in PATH_MAPPINGS.items():
+        if host_path.startswith(host_prefix):
+            relative = os.path.relpath(host_path, host_prefix)
+            if relative == '.':
+                return container_prefix
+            return os.path.join(container_prefix, relative)
+    # If no mapping found, path is already a container path
+    return host_path
+
+
+def container_to_host_path(container_path):
+    """Convert container path back to host path for display."""
+    for host_prefix, container_prefix in PATH_MAPPINGS.items():
+        if container_path.startswith(container_prefix):
+            relative = os.path.relpath(container_path, container_prefix)
+            if relative == '.':
+                return host_prefix
+            return os.path.join(host_prefix, relative)
+    # If no mapping found, return as-is
+    return container_path
+
+
+def sequential_pipeline_worker(input_dirs, config, model_dir, stop_event):
     """
     The target function for the pipeline thread.
     It validates, sets up, and executes the pipeline for each input directory sequentially.
@@ -32,16 +65,15 @@ def sequential_pipeline_worker(input_dirs, config, model_dir, host_home_dir, sto
     total_runs = len(input_dirs)
     print("[SEPARATOR]")
 
-    for i, host_path in enumerate(input_dirs):
+    for i, container_path in enumerate(input_dirs):
         if stop_event and stop_event.is_set():
             break
-        print(f"[PIPELINE]: Starting run {i + 1}/{total_runs} → '{host_path}'")
-        try:
-            container_path = host_path
-            if host_home_dir and host_path.startswith(host_home_dir):
-                relative_path = os.path.relpath(host_path, host_home_dir)
-                container_path = os.path.join(CONTAINER_HOME_DIR, relative_path)
 
+        # Convert to host path for display
+        display_path = container_to_host_path(container_path)
+        print(f"[PIPELINE]: Starting run {i + 1}/{total_runs} → '{display_path}'")
+
+        try:
             run_config = validate_inputs_and_setup(
                 input_dir=container_path,
                 model_dir=model_dir,
@@ -56,10 +88,10 @@ def sequential_pipeline_worker(input_dirs, config, model_dir, host_home_dir, sto
             if not (stop_event and stop_event.is_set()):
                 print(f"[PIPELINE]: Run {i + 1}/{total_runs} completed successfully")
         except Exception as e:
-            print(f"[PIPELINE]: Error during run {i + 1}/{total_runs} for '{host_path}': {e}")
+            print(f"[PIPELINE]: Error during run {i + 1}/{total_runs} for '{display_path}': {e}")
             # Continue to the next run even if one fails
         print("[SEPARATOR]")
-            
+
     if stop_event and stop_event.is_set():
         print("[PIPELINE]: All runs aborted.")
     else:
@@ -68,6 +100,11 @@ def sequential_pipeline_worker(input_dirs, config, model_dir, host_home_dir, sto
 
 @app.route('/validate', methods=['POST'])
 def validate():
+    """
+    Validate endpoint - performs authoritative Python validation.
+    Note: This is now primarily used for full validation before running the pipeline.
+    Quick validation for UI feedback happens in Electron/Node.js.
+    """
     data = request.get_json()
     path = data.get('path')
 
@@ -75,21 +112,21 @@ def validate():
         return jsonify({"error": "Path is missing."}), 400
 
     try:
-        container_path = path
-        if HOST_HOME_DIR and path.startswith(HOST_HOME_DIR):
-            relative_path = os.path.relpath(path, HOST_HOME_DIR)
-            container_path = os.path.join(CONTAINER_HOME_DIR, relative_path)
-        
+        # Convert host path to container path if needed
+        container_path = host_to_container_path(path)
+
         results, metadata, _, camera_format = validate_input_directory(container_path)
 
         # Sanitize paths in results for display on the host
         sanitized_results = []
         for success, message in results:
             if isinstance(message, str):
-                # Remove single quotes for replacement to catch paths in error messages
-                message = message.replace(CONTAINER_HOME_DIR, HOST_HOME_DIR)
-            sanitized_results.append((success, message))
-        
+                # Convert container paths back to host paths for display
+                message_display = container_to_host_path(message) if message.startswith('/') else message
+                sanitized_results.append((success, message_display))
+            else:
+                sanitized_results.append((success, message))
+
         all_passed = all(s for s, _ in sanitized_results)
 
         # If any check failed, return a 400 with partial results but no sensitive metadata
@@ -100,7 +137,7 @@ def validate():
                 "results": sanitized_results,
                 "metadata": {}  # Return empty metadata on failure
             }), 400
-        
+
         # On full success, add camera format to metadata
         if camera_format:
             metadata['camera_format'] = camera_format
@@ -119,7 +156,11 @@ def validate():
         })
     except Exception as e:
         # Catch any other unexpected errors during validation
-        error_message = str(e).replace(CONTAINER_HOME_DIR, HOST_HOME_DIR)
+        error_message = str(e)
+        # Convert container paths in error messages to host paths
+        for container_prefix in PATH_MAPPINGS.values():
+            if container_prefix in error_message:
+                error_message = error_message.replace(container_prefix, container_to_host_path(container_prefix))
         return jsonify({"error": f"An unexpected error occurred: {error_message}"}), 500
 
 
@@ -132,9 +173,8 @@ def run():
             return jsonify({"ok": False, "error": "Pipeline is already running."}), 409
 
     data = request.get_json()
-    input_dirs = data.get('input_paths')
+    input_dirs = data.get('input_paths')  # These are already container paths from Electron
     config = data.get('config')
-    model_dir = os.path.join(PROJECT_ROOT, 'pipeline', 'model')
 
     if not input_dirs:
         return jsonify({"ok": False, "error": "No input directories provided."}), 400
@@ -145,7 +185,7 @@ def run():
             pipeline_stop_event = multiprocessing.Event()
             pipeline_process = multiprocessing.Process(
                 target=sequential_pipeline_worker,
-                args=(input_dirs, config, model_dir, HOST_HOME_DIR, pipeline_stop_event)
+                args=(input_dirs, config, MODEL_DIR, pipeline_stop_event)
             )
             pipeline_process.daemon = True
             pipeline_process.start()

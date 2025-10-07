@@ -1,15 +1,16 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline';" />
     <title>MDPI Backend Setup</title>
     <link rel="stylesheet" href="setup.css">
 </head>
 
 <body>
     <div class="container">
-        <div id="close-btn" class="close-button">&times;</div>
+        <div id="close-btn" class="close-button" role="button" aria-label="Close" tabindex="0">&times;</div>
         <div class="spinner"></div>
         <p>Please wait while the backend is being prepared. If this is your first time running the application, this may
             take a few minutes...</p>
