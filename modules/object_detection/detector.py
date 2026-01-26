@@ -85,8 +85,8 @@ def _apply_size_filtering(
 ) -> List[np.ndarray]:
     """Apply size-based filtering to labeled images."""
     return [
-        remove_small_objects(label_img > 0, min_size=min_object_size) & 
-        ~remove_small_objects(label_img > 0, min_size=max_object_size)
+        remove_small_objects(label_img > 0, max_size=min_object_size - 1) & 
+        ~remove_small_objects(label_img > 0, max_size=max_object_size - 1)
         for label_img in label_imgs
     ]
 
@@ -128,9 +128,9 @@ def _filter_regions(
     return [
         r for r in regions
         if (r.eccentricity < max_eccentricity and
-            r.mean_intensity < max_mean_intensity and
-            r.major_axis_length > min_major_axis_length and
-            r.min_intensity < max_min_intensity)
+            r.intensity_mean < max_mean_intensity and
+            r.axis_major_length > min_major_axis_length and
+            r.intensity_min < max_min_intensity)
     ]
 
 def _calculate_crop_padding(major_axis_length: float, data: DetectionData) -> int:
@@ -158,7 +158,7 @@ def process_regions(regions: List, image_shape: Tuple[int, int], data: Detection
     for i, region in enumerate(valid_regions):
         
         row, col = int(region.centroid[0]), int(region.centroid[1])
-        padding = _calculate_crop_padding(region.major_axis_length, data)
+        padding = _calculate_crop_padding(region.axis_major_length, data)
         
         minr = max(0, row - padding)
         minc = max(0, col - padding)
@@ -167,16 +167,16 @@ def process_regions(regions: List, image_shape: Tuple[int, int], data: Detection
 
         region_data = {
             'Area': region.area,
-            'MajorAxisLength': region.major_axis_length,
-            'MinorAxisLength': region.minor_axis_length,
+            'MajorAxisLength': region.axis_major_length,
+            'MinorAxisLength': region.axis_minor_length,
             'Eccentricity': region.eccentricity,
             'Orientation': region.orientation,
-            'EquivDiameter': region.equivalent_diameter,
+            'EquivDiameter': region.equivalent_diameter_area,
             'Solidity': region.solidity,
             'Extent': region.extent,
-            'MaxIntensity': region.max_intensity,
-            'MeanIntensity': region.mean_intensity,
-            'MinIntensity': region.min_intensity,
+            'MaxIntensity': region.intensity_max,
+            'MeanIntensity': region.intensity_mean,
+            'MinIntensity': region.intensity_min,
             'Perimeter': region.perimeter
         }
 
