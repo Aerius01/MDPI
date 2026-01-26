@@ -230,7 +230,7 @@ export MDPI_DOCKER_IMAGE=ghcr.io/<owner>/mdpi-pipeline:<tag>
 export MDPI_GIT_BRANCH=<branch-name>
 ```
 
-You can set these environment variables in a bash terminal by exporting them (as above) and then starting the Electron UI, or you can pass them simulatneously in the start command:
+You can set these environment variables in a bash terminal by exporting them (as above) and then starting the Electron UI, or you can pass them simultaneously in the start command:
 
 ```bash
 cd [...]/MDPI/electron
