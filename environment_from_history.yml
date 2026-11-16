@@ -1,18 +1,17 @@
 name: mdpi-env
 channels:
-  - https://repo.anaconda.com/pkgs/main
-  - https://repo.anaconda.com/pkgs/r
+  - conda-forge
 dependencies:
-  - python=3.11
-  - conda-forge::tqdm
-  - conda-forge::imutils
-  - anaconda::numpy
-  - conda-forge::opencv<5
-  - anaconda::pandas
-  - anaconda::scikit-image>=0.26
-  - conda-forge::onnxruntime
-  - anaconda::scikit-learn
-  - pygobject=3.48.2
-  - conda-forge::gtk3
-  - conda-forge::streamlit
-prefix: /home/david-james/miniconda3/envs/mdpi-env
+  - python=3.14
+  - tqdm
+  - imutils
+  - numpy
+  - opencv>=5.1
+  - pandas
+  - scikit-image>=0.26
+  - onnxruntime
+  - scikit-learn
+  - matplotlib-base
+  - pygobject
+  - gtk3
+  - streamlit
