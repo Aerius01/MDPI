@@ -2,7 +2,7 @@
 
 ## Abstract
 
-The Object Classification module follows the `object_detection` module. Its purpose is to take the vignettes (small, cropped images of detected objects) and assign a class label to each one. This is achieved using a pre-trained image classification model in ONNX format, run with `onnxruntime` on the CPU. The module processes vignettes in batches, runs them through the CNN for inference, and outputs the classification results. In addition to the primary class label, it also calculates several uncertainty metrics for each prediction, providing insight into the model's confidence. The final output is a comprehensive CSV file that merges the classification results with the object data from the detection phase.
+The Object Classification module follows the `object_detection` module. Its purpose is to take the vignettes (small, cropped images of detected objects) and assign a class label to each one. This is achieved using a pre-trained image classification model in ONNX format, run with `onnxruntime` on the CPU. The module processes vignettes in batches, runs them through the model for inference, and outputs the classification results. In addition to the primary class label, it also calculates several uncertainty metrics for each prediction, providing insight into the model's confidence. The final output is a comprehensive CSV file that merges the classification results with the object data from the detection phase.
 
 ## How it Works
 
@@ -10,7 +10,7 @@ The classification process is orchestrated through several interconnected compon
 
 1.  **Data Ingestion and Validation:** The module begins by locating and loading the vignettes from the specified input directory.
 
-2.  **Image Preprocessing:** Before being fed into the CNN, all vignettes undergo a standardized preprocessing routine. This involves the steps listed under "Preprocessing applied before the model" below, ending with a resize to the model's input size N x N. Pixel normalization is then applied as declared by the model's metadata.
+2.  **Image Preprocessing:** Before being fed into the model, all vignettes undergo a standardized preprocessing routine. This involves the steps listed under "Preprocessing applied before the model" below, ending with a resize to the model's input size N x N. Pixel normalization is then applied as declared by the model's metadata.
 
 3.  **Model Loading and Inference:** The module loads the ONNX model given with `-m/--model` (default `model/mdpi_4class_v1.onnx`, resolved from the repository root) and checks it against the model contract below before any processing starts. The inference engine then processes the preprocessed vignettes in batches for efficiency. For each vignette, the model outputs a vector of raw prediction scores (logits) for each possible class.
 
@@ -31,7 +31,7 @@ The classification process is orchestrated through several interconnected compon
 
 ## Using your own model
 
-Any ONNX model that meets the contract below can be used with `python3 run_pipeline.py -i <input_directory> -m my_model_mdpi.onnx`. Converting a model to ONNX is up to you; only the contract is documented here. The contract is checked during input validation, before depth profiling starts, and a violation raises an error (`ModelContractError`) with a message naming the problem. Nothing is silently defaulted.
+Any ONNX model that meets the contract below can be used with `python3 run_pipeline.py -i <input_directory> -m my_model_mdpi.onnx`. Converting a model to ONNX is up to you; only the contract is documented here. The contract is checked during input validation, before depth profiling starts. A missing model file raises `FileNotFoundError`; every other violation (wrong file suffix, a file onnxruntime cannot load, or any contract rule) raises `ModelContractError` with a message naming the problem. Nothing is silently defaulted. The model file is read once at validation and its SHA-256 is recorded; classification refuses to run if the file changed in between.
 
 ### Preprocessing applied before the model
 
@@ -56,7 +56,7 @@ Exactly 1 input, element type `tensor(float)` (float32). Allowed shapes:
 
 ### Output
 
-Exactly 1 output, shape `[B, C]`, where `C` is a static integer equal to `len(mdpi.classes)`. These must be raw scores (logits), not probabilities. The pipeline applies softmax itself and computes the uncertainty metrics from the result.
+Exactly 1 output, element type `tensor(float)` (float32), like the input, with shape `[B, C]`, where `C` is a static integer equal to `len(mdpi.classes)`. These must be raw scores (logits), not probabilities. The pipeline applies softmax itself and computes the uncertainty metrics from the result.
 
 ### Metadata
 
@@ -108,6 +108,6 @@ The class names and the input size are not hardcoded. They are read from the mod
 
 ### Concerns and Limitations
 
--   **Model Dependency:** The module's accuracy is entirely dependent on the quality and suitability of the pre-trained CNN model. A model trained on one type of data may not generalize well to another.
+-   **Model Dependency:** The module's accuracy is entirely dependent on the quality and suitability of the pre-trained model. A model trained on one type of data may not generalize well to another.
 -   **Class Set Comes From the Model:** To classify new types of objects, retrain the model, export it to ONNX and list the classes in its `mdpi.classes` metadata. No code change is needed.
 -   **"Label" vs. "Prediction":** The module saves the model's prediction under two columns, `prediction` and `label`. This is a legacy feature and might be confusing, as the `label` in this context is not a ground-truth value but simply a copy of the model's output.
