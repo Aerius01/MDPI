@@ -2,17 +2,14 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import pandas as pd
-from typing import List
 from imutils import paths
 from datetime import date, time
 from types import SimpleNamespace
 from modules.common.constants import CONSTANTS
+from .model_contract import ClassifierModel
 
 # ─── O B J E C T · C L A S S I F I C A T I O N · P A R A M E T E R S ──────────────
 CLASSIFICATION_BATCH_SIZE: int = 32
-CLASSIFICATION_INPUT_SIZE: int = 50
-CLASSIFICATION_INPUT_DEPTH: int = 1
-CLASSIFICATION_CATEGORIES: List[str] = ['cladocera', 'copepod', 'junk', 'rotifer'] # The available classification categories
 
 # Hardcoded constants
 OUTPUT_CSV_FILENAME = 'object_data.csv' # The filename of the output objects CSV file
@@ -21,13 +18,10 @@ LEFT_JOIN_KEY = 'FileName' # The column name used to join the detection and clas
 
 @dataclass
 class ClassificationData:
-    vignette_paths: list
+    vignette_paths: list[str]
     output_path: Path
-    model_path: str
+    classifier_model: ClassifierModel
     batch_size: int
-    input_size: int
-    input_depth: int
-    categories: list
     csv_filename: str
     csv_separator: str
     detection_df: pd.DataFrame
@@ -69,17 +63,14 @@ def _validate_arguments(
     print(f"[CLASSIFICATION]: Found {len(vignette_paths)} vignettes")
 
     if object_data_df.empty:
-        raise ValueError(f"Input object_data_df is empty")
+        raise ValueError("Input object_data_df is empty")
 
     # Return the validated arguments    
     return ClassificationData(
         vignette_paths=vignette_paths,
         output_path=Path(run_config.output_root),
-        model_path=run_config.model_dir,
+        classifier_model=run_config.classifier_model,
         batch_size=CLASSIFICATION_BATCH_SIZE,
-        input_size=CLASSIFICATION_INPUT_SIZE,
-        input_depth=CLASSIFICATION_INPUT_DEPTH,
-        categories=CLASSIFICATION_CATEGORIES,
         csv_filename=OUTPUT_CSV_FILENAME,
         csv_separator=CONSTANTS.CSV_SEPARATOR,
         detection_df=object_data_df,

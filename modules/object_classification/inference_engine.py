@@ -1,113 +1,111 @@
-import os
+from typing import Any, TypedDict
+
 import numpy as np
+import onnxruntime as ort
 from tqdm import tqdm
-from typing import List, Dict, Any
 
 # Custom modules located within the object_classification module
-from .architecture import _build_model
 from .classification_data import ClassificationData
+from .model_contract import ClassifierModel, InputLayout, Normalization
 
 # Custom modules located externally from the object_classification module
 from tools.nn.soft_max import soft_max
-from tools.io.batch_generator import batch_generator
 from tools.preprocessing.image_preprocessing import image_preprocessing
 from tools.metrics.entropy import entropy
 from tools.metrics.least_confidence import least_confidence
 from tools.metrics.margin_sampling import margin_sampling
 
-# Suppress TensorFlow logging messages - MUST be set before importing tensorflow
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # 0=all, 1=no INFO, 2=no INFO/WARN, 3=no INFO/WARN/ERROR
+_PIXEL_SCALE: float = 255.0
 
-import tensorflow as tf
-tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
-class _InferenceEngine:
-    """Handles model inference and prediction pipeline."""
-    
-    def __init__(self, validated_args: ClassificationData):
-        self.validated_args = validated_args
-        self.session = None
+class ModelRecord(TypedDict):
+    path: str
+    sha256: str
 
-        # Reset the default graph and close the session
-        tf.compat.v1.disable_eager_execution()
-        tf.compat.v1.reset_default_graph()
-        if tf.compat.v1.get_default_session() is not None:
-            tf.compat.v1.get_default_session().close()
-    
-    def setup_model(self):
-        """Setup TensorFlow session and model."""
-        self.session = tf.compat.v1.Session()
-        
-        print('[CLASSIFICATION]: Constructing classification model...')
-        self.x_input, self.keep_prob, self.y_pred = _build_model(self.validated_args.input_size, self.validated_args.input_depth, len(self.validated_args.categories))
-        
-        print('[CLASSIFICATION]: Restoring classification model...')
-        self.session.run(tf.compat.v1.global_variables_initializer())
-        saver = tf.compat.v1.train.Saver()
-        saver.restore(self.session, os.path.sep.join([self.validated_args.model_path, "model.ckpt"]))
-    
-    def process_location(self) -> Dict[str, Any]:
-        """Process all images in the provided list and return classification results."""
-        
-        # Preprocess images
-        angles, images, image_mean = image_preprocessing(self.validated_args.vignette_paths, self.validated_args.input_size)
-        
-        # Run batch predictions
-        predictions = self._run_batch_predictions(images, image_mean, len(self.validated_args.vignette_paths))
-        
-        # Post-process predictions
-        return self._post_process_predictions(predictions, self.validated_args.vignette_paths, angles)
-    
-    def _run_batch_predictions(self, images: np.ndarray, image_mean: float, num_images: int) -> np.ndarray:
-        """Run batch predictions on preprocessed images."""
-        predictions = np.array([], dtype=np.float32).reshape(0, len(self.validated_args.categories))
-        epoch_step = 0
-        
-        print('[CLASSIFICATION]: Starting vignettes classification...')
-        print(f"[CLASSIFICATION]: Processing {num_images} images in {int(np.ceil(num_images / self.validated_args.batch_size))} batches")
-        for i in tqdm(range(int(np.ceil(num_images / self.validated_args.batch_size))), desc='[CLASSIFICATION]'):
-            batch_x = batch_generator(
-                images=images, images_mean=image_mean, nr_images=num_images,
-                batch_size=self.validated_args.batch_size, index=epoch_step
-            )
-            epoch_step += self.validated_args.batch_size
-            
-            pred = self.session.run(self.y_pred, feed_dict={self.x_input: batch_x, self.keep_prob: 1})
-            predictions = np.concatenate((predictions, pred), axis=0)
-        
-        return predictions
-    
-    def _post_process_predictions(self, predictions: np.ndarray, vignette_paths: List[str], angles: List[float]) -> Dict[str, Any]:
-        """Post-process predictions and calculate uncertainty metrics."""
-        predictions = soft_max(predictions)
-        
-        # Calculate uncertainty metrics
-        _, max_y = least_confidence(predictions)
-        _, diff = margin_sampling(predictions)
-        _, ent = entropy(predictions)
-        
-        cat_predictions = np.argmax(predictions, axis=1).tolist()
-        
-        # Format output
-        samples = []
-        for i, image_path in enumerate(vignette_paths):
-            samples.append({
-                'paths': image_path,
-                'y_predicted': cat_predictions[i],
-                'full_y_predicted': predictions[i, :],
-                'HC_lc': max_y[i],
-                'HC_ms': diff[i],
-                'HC_en': ent[i],
-                'orientation': angles[i]
-            })
-        
-        return {
-            'classes': self.validated_args.categories,
-            'samples': samples
+
+class ClassificationResults(TypedDict):
+    classes: list[str]
+    samples: list[dict[str, Any]]
+    model: ModelRecord
+
+
+def normalize_batch(images: list[np.ndarray], images_mean: np.float64, model: ClassifierModel) -> np.ndarray:
+    """Normalize uint8 images as the model declares, in float64, and return float32 (B, N, N)."""
+    pixels = np.asarray(images, dtype=np.float64)
+    match model.normalization:
+        case Normalization.RUN_MEAN:
+            normalized = (pixels - images_mean) / _PIXEL_SCALE
+        case Normalization.FIXED:
+            normalized = (pixels / _PIXEL_SCALE - model.norm_mean) / model.norm_std
+        case Normalization.UNIT:
+            normalized = pixels / _PIXEL_SCALE
+    return normalized.astype(np.float32)
+
+
+def to_layout(batch: np.ndarray, layout: InputLayout) -> np.ndarray:
+    """Reshape a (B, N, N) batch to the model's input layout."""
+    match layout:
+        case InputLayout.BHW:
+            return batch
+        case InputLayout.BHWC:
+            return batch[:, :, :, np.newaxis]
+        case InputLayout.BCHW:
+            return batch[:, np.newaxis, :, :]
+
+
+def predict_logits(
+    session: ort.InferenceSession,
+    model: ClassifierModel,
+    images: list[np.ndarray],
+    images_mean: np.float64,
+    batch_size: int,
+) -> np.ndarray:
+    """Run the model over all images in batches and return the concatenated logits (n, C)."""
+    num_batches = int(np.ceil(len(images) / batch_size))
+    print(f"[CLASSIFICATION]: Processing {len(images)} images in {num_batches} batches")
+    batches: list[np.ndarray] = []
+    for start in tqdm(range(0, len(images), batch_size), desc='[CLASSIFICATION]'):
+        batch = normalize_batch(images[start:start + batch_size], images_mean, model)
+        batches.append(session.run(None, {model.input_name: to_layout(batch, model.layout)})[0])
+    return np.concatenate(batches, axis=0).astype(np.float32)
+
+
+def summarize_predictions(
+    logits: np.ndarray, vignette_paths: list[str], angles: list[float], model: ClassifierModel
+) -> ClassificationResults:
+    """Apply softmax and the uncertainty metrics, and assemble the results dict saved to the pkl."""
+    predictions = soft_max(logits.copy())
+
+    _, max_y = least_confidence(predictions)
+    _, diff = margin_sampling(predictions)
+    _, ent = entropy(predictions)
+    cat_predictions = np.argmax(predictions, axis=1).tolist()
+
+    samples = [
+        {
+            'paths': image_path,
+            'y_predicted': cat_predictions[i],
+            'full_y_predicted': predictions[i, :],
+            'HC_lc': max_y[i],
+            'HC_ms': diff[i],
+            'HC_en': ent[i],
+            'orientation': angles[i],
         }
-    
-    def close(self):
-        """Close the TensorFlow session to free resources."""
-        if self.session is not None:
-            self.session.close()
-            self.session = None 
+        for i, image_path in enumerate(vignette_paths)
+    ]
+    return {
+        'classes': list(model.classes),
+        'samples': samples,
+        'model': {'path': str(model.path), 'sha256': model.sha256},
+    }
+
+
+def classify_vignettes(data: ClassificationData) -> ClassificationResults:
+    """Preprocess and classify all vignettes with the ONNX model."""
+    model = data.classifier_model
+    print(f"[CLASSIFICATION]: Using model {model.path.name} (sha256 {model.sha256[:12]})")
+    session = ort.InferenceSession(str(model.path), providers=["CPUExecutionProvider"])
+
+    angles, images, images_mean = image_preprocessing(data.vignette_paths, model.input_size)
+    logits = predict_logits(session, model, images, images_mean, data.batch_size)
+    return summarize_predictions(logits, data.vignette_paths, angles, model)

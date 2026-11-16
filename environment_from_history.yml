@@ -10,7 +10,6 @@ dependencies:
   - conda-forge::opencv
   - anaconda::pandas
   - anaconda::scikit-image
-  - conda-forge::tensorflow
   - conda-forge::onnxruntime
   - anaconda::scikit-learn
   - pygobject=3.48.2
