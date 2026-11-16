@@ -29,6 +29,16 @@ The classification process is orchestrated through several interconnected compon
 -   **Classification Pickle File:** A file named `object_data.pkl` is saved in the same directory as the CSV. It contains a serialized dictionary with the raw classification results, including probabilities and uncertainty metrics, which can be used by the class viewer (see `class_viewer.py`). It also has a `model` key, `results['model'] = {'path': str, 'sha256': str}`, which records the model file used for the run. The model is also printed to the console. The CSV format is unchanged.
 -   **Entropy fix (`HC_en`):** Earlier versions returned the entropies sorted in descending order while indexing them per vignette, so `HC_en` in older pickle files is misaligned with the vignettes. Entropy is now returned per sample, like `least_confidence` and `margin_sampling`, so `HC_en` values in new pickle files differ from those in old ones.
 
+## The bundled model
+
+`model/mdpi_4class_v1.onnx` is used when no `-m` is given, and always by the Streamlit GUI. It is a reference for the contract below:
+
+| Property | Value |
+|----------|-------|
+| Input | `[batch, 50, 50]` (layout `BHW`, N = 50) |
+| `mdpi.classes` | `["cladocera", "copepod", "junk", "rotifer"]` |
+| `mdpi.normalization` | `run_mean` |
+
 ## Using your own model
 
 Any ONNX model that meets the contract below can be used with `python3 run_pipeline.py -i <input_directory> -m my_model_mdpi.onnx`. Converting a model to ONNX is up to you; only the contract is documented here. The contract is checked during input validation, before depth profiling starts. A missing model file raises `FileNotFoundError`; every other violation (wrong file suffix, a file onnxruntime cannot load, or any contract rule) raises `ModelContractError` with a message naming the problem. Nothing is silently defaulted. The model file is read once at validation and its SHA-256 is recorded; classification refuses to run if the file changed in between.
@@ -99,6 +109,27 @@ for key, value in metadata.items():
     prop.key, prop.value = key, value
 onnx.save(model, "my_model_mdpi.onnx")
 ```
+
+### Checking a model
+
+To see what the pipeline will read from a model, run this in `mdpi-env`:
+
+```python
+import onnxruntime as ort
+
+session = ort.InferenceSession("my_model_mdpi.onnx")
+print(session.get_modelmeta().custom_metadata_map)        # the mdpi.* keys
+print(session.get_inputs()[0].shape, session.get_inputs()[0].type)
+print(session.get_outputs()[0].shape, session.get_outputs()[0].type)
+```
+
+Running the pipeline is the real check: the model is validated before any processing starts, so a model that breaks the contract fails within seconds:
+
+```bash
+echo Y | python3 run_pipeline.py -i /data/mdpi/Lake_X/20230425/day/E01_01 -m my_model_mdpi.onnx
+```
+
+The pipeline then prints `[PIPELINE]: Using classification model ...` or `[PIPELINE]: Error: ...` with the rule that failed. Per-class concentrations and plots (`plots/<class>/`) are named after the model's `mdpi.classes`.
 
 ## Constants, Concerns, and Limitations
 
