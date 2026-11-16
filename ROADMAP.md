@@ -38,7 +38,7 @@ Classification runs on ONNX models through `onnxruntime` instead of a TF1 checkp
 
 `B` must be dynamic (a symbolic name or unset). `N` must be a static int >= 2 and equal in both spatial positions. A rank-4 shape counts as `BHWC` only if `shape[3] == 1 and shape[1] != 1`, and as `BCHW` only if `shape[1] == 1 and shape[3] != 1`. Anything else is an error.
 
-**Output:** exactly 1 output, shape `[B, C]` with `C` a static int equal to `len(mdpi.classes)`. These are raw scores (logits), not probabilities.
+**Output:** exactly 1 output, element type `tensor(float)` (float32; added at the phase 1 gate review), shape `[B, C]` with `C` a static int equal to `len(mdpi.classes)`. These are raw scores (logits), not probabilities.
 
 **Metadata (`metadata_props`):**
 
@@ -89,7 +89,12 @@ DEFAULT_MODEL_PATH: Path  # Path(__file__).resolve().parents[2] / "model" / "mdp
 
 def load_classifier_model(path: Path) -> ClassifierModel:
     """Load an ONNX classifier and validate it against the MDPI model contract."""
+
+def open_session(model: ClassifierModel) -> ort.InferenceSession:
+    """Open a CPU inference session on the model file, verifying it is unchanged since validation."""
 ```
+
+`open_session` was added at the phase 1 gate review: the loader reads the file once and hashes those bytes; `open_session` re-reads it, raises `ModelContractError` if the sha256 differs, and is the only place a session is built (CPU provider, D7).
 
 `load_classifier_model` raises `FileNotFoundError` if the file is missing. Every other violation (wrong suffix, file onnxruntime cannot load, any contract rule) raises `ModelContractError`, with a message naming the file, the rule broken, what was found, and how to fix it. For metadata errors the message lists the valid keys and values.
 
@@ -97,7 +102,7 @@ def load_classifier_model(path: Path) -> ClassifierModel:
 
 ## Project facts and constraints
 
-- **Interpreter:** `~/miniconda3/envs/mdpi-env/bin/python` (Python 3.11.13, TF 2.18.0, numpy 2.3.3). Call it by path; do not use `conda run`. Run from the repo or worktree root so `modules` and `tools` import.
+- **Interpreter:** `~/miniconda3/envs/mdpi-env/bin/python`. Since the phase 1 close it is built from `environment_from_history.yml`: Python 3.11.18, numpy 2.4.6, opencv 4.13.0, scikit-image 0.26.0, scikit-learn 1.9.1, onnxruntime 1.32.0, streamlit 1.67.0, no TensorFlow. (Before phase 1: Python 3.11.13, TF 2.18.0, numpy 2.3.3, and no streamlit despite the yml.) Call it by path; do not use `conda run`. Run from the repo or worktree root so `modules` and `tools` import.
 - **Lint:** `~/miniconda3/envs/scrap/bin/ruff check <changed .py files>` (ruff 0.6.9, default rules). Lint only the files a WP changes; untouched legacy code is out of scope.
 - **Tests:** the repo has no test suite. Must-pass checks are commands and scratch scripts. Workers put their scripts in `$SCRATCH/ox-<wp>/`, where `$SCRATCH` is the orchestrator session's scratchpad. The orchestrator gives the absolute path in each brief.
 - **One-off packages:** install into the `scrap` env (for example `onnx` for building synthetic test models), never into `mdpi-env`, except the `onnxruntime` install in WP 1.2.
@@ -110,7 +115,7 @@ def load_classifier_model(path: Path) -> ClassifierModel:
 - **Interactive prompt:** `run_pipeline.py` asks `Accept these values? (Y/N)`. Feed it with `printf 'Y\n' | ...`.
 - **TF checkpoint quirks:** `architecture.py` names both the fc weight and the fc bias `fc6` (and likewise `fc7`, `fc8`); TF makes them unique by creation order, so a rebuild must create variables in exactly the same order. `keep_prob` is a placeholder fed with 1 at inference, which makes dropout the identity. Conv1 uses stride 2 with `SAME` padding (asymmetric). LRN uses `depth_radius=2, alpha=2e-5, beta=0.75, bias=1.0`. Note that TF and ONNX scale LRN alpha differently, so let `tf2onnx` do the mapping and do not hand-build the graph.
 - **Current preprocessing quirk:** `image_preprocessing` returns `images` as a Python **list** of uint8 arrays and `images_mean` as `np.float64`. `batch_generator` computes `(images[i:j] - images_mean) / 255.`, which works only through numpy-scalar broadcasting and yields float64. The reference behaviour is therefore "float64 math, fed as float32".
-- **Worktrees:** `.claude/settings.local.json` currently has **no** `"worktree": {"baseRef": "head"}`. The orchestrator must add it before spawning.
+- **Worktrees:** `.claude/settings.local.json` has `"worktree": {"baseRef": "head"}` (added in phase 1).
 - **Untracked files:** `CLAUDE.md`, `.claudeignore` and `electron/` are untracked. Leave `electron/` alone.
 - **Out of scope:** `class_viewer.py` and `DispGrid.py` (they read the pkl and need no change), `tools/nn/soft_max.py`, the Electron AppImage (it needs a rebuild later to pick this up; not part of this roadmap), and uninstalling TF from the live `mdpi-env` (see "Open for the grill").
 
@@ -278,5 +283,36 @@ def load_classifier_model(path: Path) -> ClassifierModel:
 
 ## Outcomes
 
-### Phase 1
-_Not started._
+### Phase 1 (done 2026-11-16, merged to `main`)
+
+**Commits** (`797ea8a..` on `ox-1-onnx-models`, fast-forwarded to `main`):
+- Wave 1: `76074bc` 1.1 ONNX model, `731993c` 1.2 contract loader + onnxruntime, `78bbba1` 1.3 entropy fix, `db0cf29` 1.4 docs.
+- Wave 2: `3d46fb8` 1.5 onnxruntime inference + TF removal + ckpt deletion, `47c78ce` 1.6 CLI/GUI/validation wiring.
+- Gate review fixes: `7e999d4` 1.2 (read and hash model bytes once, `open_session` with sha re-check, float output rule, neutral error wording), `3e9f776` 1.4 (docs aligned), `a0d643a` 1.6 (model validated first, loader normalizes the path), `9b7b25d` 1.5 (sessions via `open_session`, `SampleResult` TypedDict, `assert_never`, empty-vignettes error).
+- Orchestrator: `18bec9d` pin `scikit-image>=0.26`, `f00a3a8` pin `opencv<5`, `648d69b` GUI log via `st.iframe`.
+
+**Test results (gate on `9b7b25d`, re-checked after the env rebuild):**
+- D6 equivalence, TF checkpoint vs ONNX on all 4 runs (36437 vignettes): 0 argmax mismatches, max |dlogit| 2.1e-5, max |dprob| 3.2e-6.
+- Classification of `PE_0425_E01_01` through `run_classification`: 0 mismatches vs the TF reference, max |dprob| 2.6e-6, `HC_en` per sample, CSV predictions identical to the old TF output.
+- Full CLI smoke run with no `-m`: exit 0, all outputs and plots, pkl `model` key with the right sha256, 9479/9479 vignettes identical to the reference with 0 mismatches.
+- Contract: 17 synthetic cases plus 5 review-fix cases pass. Bad model (missing file or missing metadata) exits 1 before depth profiling and creates no `output/`.
+- GUI (human check, `E02_01` via symlinked smoke folder): run completes, logs show the ONNX model; 8434/8434 predictions match the reference.
+- ruff clean on all changed files; no `tensorflow` in tracked `.py`/`.yml`.
+
+**Decisions taken during the phase:** G1-G4 above. Gate review added two contract rules recorded in the contract and interface sections: output must be `tensor(float)`, and `open_session` re-verifies the sha256 before inference. Out-of-WP fixes approved by the user: pin `scikit-image>=0.26` and `opencv<5`; `mdpi-env` recreated from the yml (G2 done). G3 (deleting `mdpi-onnx-convert`) is still awaiting the user's go-ahead.
+
+**Lessons:**
+- The pre-phase base was already broken: `773be99` uses the scikit-image 0.26 `max_size` API, but the env had 0.25.2. Run a full smoke run during baseline verification, not only at the gate.
+- The live env had drifted from the yml (no streamlit). Rebuilding the env from the yml is the only real proof of it.
+- Unpinned opencv resolved to 5.1, whose rotate/resize changed preprocessed pixels by up to 5 levels and flipped 28/9479 predictions. Preprocessing is numerically sensitive: pin libraries in the preprocessing path and compare against the reference `.npz` after any env change.
+- Scratch check scripts that take paths as arguments must say so in their report; two re-runs initially failed only for that reason.
+
+**Scratch artifacts** (session scratchpad, not durable): `ox-1.1/` (convert.py, equivalence.py, reference/*.npz with the TF outputs), `ox-1.2/`, `ox-1.2r/` (contract checks and synthetic models), `ox-1.5/`, `ox-1.5r/`, `ox-1.6/`, `ox-1.6r/`, `orch/` (gate.sh and smoke folders).
+
+**Side effects outside the repo:** installing `onnx` into the `scrap` env upgraded protobuf to 7.36.2, which conflicts with grpcio-tools/grpcio-reflection 1.67.0 there.
+
+### Carry-over (no further phase in this roadmap)
+- Update the project `CLAUDE.md` (untracked): "Model files" line, the Development Commands example (`-m` optional, takes a `.onnx` file), and the "Model validation checks for required checkpoint files" line (now `load_classifier_model`).
+- Rebuild the Electron AppImage to ship the change.
+- Out of scope but noted by the gate review: `tools/nn/soft_max.py` subtracts the global max instead of the per-row max, so a row far below the global max could underflow to NaN in float32 (same behaviour as the old TF path).
+- `start_streamlit.sh` defaults `PROJECT_ROOT` to `~/MDPI`; this checkout needs `PROJECT_ROOT=$PWD`.
