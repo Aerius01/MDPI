@@ -60,7 +60,7 @@ Requirements:
     *   Anything before the date (here `Basler acA2040-25gmNIR (21971232)`) is ignored.
 *   **Pressure sensor data**: exactly one `.csv` file. The pipeline stops with an error if there are zero or several. Both the old and the new sensor CSV format are supported; the format is detected automatically from the header.
 
-Example data is not part of the repository (the `profiles/` folder is ignored by git), so ask your supervisor for a sample descent if you do not have one.
+Example data is not part of the repository (the `profiles/` folder is ignored by git).
 
 ## Running from the Command Line
 
