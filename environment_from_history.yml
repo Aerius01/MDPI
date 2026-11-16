@@ -7,7 +7,7 @@ dependencies:
   - conda-forge::tqdm
   - conda-forge::imutils
   - anaconda::numpy
-  - conda-forge::opencv
+  - conda-forge::opencv<5
   - anaconda::pandas
   - anaconda::scikit-image>=0.26
   - conda-forge::onnxruntime
