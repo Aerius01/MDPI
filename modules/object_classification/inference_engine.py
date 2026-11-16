@@ -1,4 +1,4 @@
-from typing import Any, TypedDict
+from typing import TypedDict, assert_never
 
 import numpy as np
 import onnxruntime as ort
@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 # Custom modules located within the object_classification module
 from .classification_data import ClassificationData
-from .model_contract import ClassifierModel, InputLayout, Normalization
+from .model_contract import ClassifierModel, InputLayout, ModelContractError, Normalization, open_session
 
 # Custom modules located externally from the object_classification module
 from tools.nn.soft_max import soft_max
@@ -23,9 +23,19 @@ class ModelRecord(TypedDict):
     sha256: str
 
 
+class SampleResult(TypedDict):
+    paths: str
+    y_predicted: int
+    full_y_predicted: np.ndarray
+    HC_lc: float
+    HC_ms: float
+    HC_en: float
+    orientation: float
+
+
 class ClassificationResults(TypedDict):
     classes: list[str]
-    samples: list[dict[str, Any]]
+    samples: list[SampleResult]
     model: ModelRecord
 
 
@@ -36,9 +46,16 @@ def normalize_batch(images: list[np.ndarray], images_mean: np.float64, model: Cl
         case Normalization.RUN_MEAN:
             normalized = (pixels - images_mean) / _PIXEL_SCALE
         case Normalization.FIXED:
+            if model.norm_mean is None or model.norm_std is None:
+                raise ModelContractError(
+                    f"Model '{model.path}': fixed normalization requires norm_mean and norm_std, "
+                    f"found {model.norm_mean} and {model.norm_std}. Reload the model through the contract loader."
+                )
             normalized = (pixels / _PIXEL_SCALE - model.norm_mean) / model.norm_std
         case Normalization.UNIT:
             normalized = pixels / _PIXEL_SCALE
+        case _:
+            assert_never(model.normalization)
     return normalized.astype(np.float32)
 
 
@@ -51,6 +68,8 @@ def to_layout(batch: np.ndarray, layout: InputLayout) -> np.ndarray:
             return batch[:, :, :, np.newaxis]
         case InputLayout.BCHW:
             return batch[:, np.newaxis, :, :]
+        case _:
+            assert_never(layout)
 
 
 def predict_logits(
@@ -67,7 +86,7 @@ def predict_logits(
     for start in tqdm(range(0, len(images), batch_size), desc='[CLASSIFICATION]'):
         batch = normalize_batch(images[start:start + batch_size], images_mean, model)
         batches.append(session.run(None, {model.input_name: to_layout(batch, model.layout)})[0])
-    return np.concatenate(batches, axis=0).astype(np.float32)
+    return np.concatenate(batches, axis=0)
 
 
 def summarize_predictions(
@@ -81,7 +100,7 @@ def summarize_predictions(
     _, ent = entropy(predictions)
     cat_predictions = np.argmax(predictions, axis=1).tolist()
 
-    samples = [
+    samples: list[SampleResult] = [
         {
             'paths': image_path,
             'y_predicted': cat_predictions[i],
@@ -104,7 +123,7 @@ def classify_vignettes(data: ClassificationData) -> ClassificationResults:
     """Preprocess and classify all vignettes with the ONNX model."""
     model = data.classifier_model
     print(f"[CLASSIFICATION]: Using model {model.path.name} (sha256 {model.sha256[:12]})")
-    session = ort.InferenceSession(str(model.path), providers=["CPUExecutionProvider"])
+    session = open_session(model)
 
     angles, images, images_mean = image_preprocessing(data.vignette_paths, model.input_size)
     logits = predict_logits(session, model, images, images_mean, data.batch_size)

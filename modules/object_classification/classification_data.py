@@ -64,6 +64,8 @@ def _validate_arguments(
 
     if object_data_df.empty:
         raise ValueError("Input object_data_df is empty")
+    if not vignette_paths:
+        raise FileNotFoundError(f"No vignettes found in '{vignettes_dir}'. Run object detection first or check the output folder.")
 
     # Return the validated arguments    
     return ClassificationData(
