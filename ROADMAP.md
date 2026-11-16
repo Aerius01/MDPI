@@ -299,7 +299,7 @@ def open_session(model: ClassifierModel) -> ort.InferenceSession:
 - GUI (human check, `E02_01` via symlinked smoke folder): run completes, logs show the ONNX model; 8434/8434 predictions match the reference.
 - ruff clean on all changed files; no `tensorflow` in tracked `.py`/`.yml`.
 
-**Decisions taken during the phase:** G1-G4 above. Gate review added two contract rules recorded in the contract and interface sections: output must be `tensor(float)`, and `open_session` re-verifies the sha256 before inference. Out-of-WP fixes approved by the user: pin `scikit-image>=0.26` and `opencv<5`; `mdpi-env` recreated from the yml (G2 done). G3 (deleting `mdpi-onnx-convert`) is still awaiting the user's go-ahead.
+**Decisions taken during the phase:** G1-G4 above. Gate review added two contract rules recorded in the contract and interface sections: output must be `tensor(float)`, and `open_session` re-verifies the sha256 before inference. Out-of-WP fixes approved by the user: pin `scikit-image>=0.26` and `opencv<5`; `mdpi-env` recreated from the yml (G2 done). G3 done after the merge: `mdpi-onnx-convert` deleted.
 
 **Lessons:**
 - The pre-phase base was already broken: `773be99` uses the scikit-image 0.26 `max_size` API, but the env had 0.25.2. Run a full smoke run during baseline verification, not only at the gate.
@@ -309,7 +309,7 @@ def open_session(model: ClassifierModel) -> ort.InferenceSession:
 
 **Scratch artifacts** (session scratchpad, not durable): `ox-1.1/` (convert.py, equivalence.py, reference/*.npz with the TF outputs), `ox-1.2/`, `ox-1.2r/` (contract checks and synthetic models), `ox-1.5/`, `ox-1.5r/`, `ox-1.6/`, `ox-1.6r/`, `orch/` (gate.sh and smoke folders).
 
-**Side effects outside the repo:** installing `onnx` into the `scrap` env upgraded protobuf to 7.36.2, which conflicts with grpcio-tools/grpcio-reflection 1.67.0 there.
+**Side effects outside the repo:** installing `onnx` into `scrap` upgraded protobuf and broke grpcio-tools there; at the user's request `scrap` was then recreated fresh (python 3.11 plus `ruff==0.6.9` for the lint command).
 
 ### Carry-over (no further phase in this roadmap)
 - Update the project `CLAUDE.md` (untracked): "Model files" line, the Development Commands example (`-m` optional, takes a `.onnx` file), and the "Model validation checks for required checkpoint files" line (now `load_classifier_model`).
