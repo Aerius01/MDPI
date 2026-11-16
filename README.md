@@ -22,20 +22,20 @@ Before running the pipeline, ensure you have the following:
     *   Raw MDPI images (e.g., `.tif` files).
     *   A pressure sensor data file (CSV format).
     > **Note:** The input directory must contain exactly one `.csv` file for the pressure sensor data. The pipeline will fail if zero or more than one `.csv` files are found.
-*   **Trained Model**: A directory containing the trained TensorFlow model checkpoint files (`model.ckpt.meta`, `model.ckpt.index`, `model.ckpt.data-00000-of-00001`).
+*   **Trained Model** (optional): An ONNX classification model (`.onnx` file). If none is given, the bundled model `model/mdpi_4class_v1.onnx` is used.
 
 ## Usage
 
 The script is executed from the command line.
 
 ```bash
-python3 run_pipeline.py -i <input_directory> -m <model_directory>
+python3 run_pipeline.py -i <input_directory> [-m <model.onnx>]
 ```
 
 ### Arguments
 
 *   `-i, --input`: **(Required)** Path to the input directory containing the raw MDPI images and the pressure sensor CSV file.
-*   `-m, --model`: **(Required)** Path to the directory containing the trained model checkpoint files.
+*   `-m, --model`: *(Optional)* Path to an ONNX model file. Defaults to `model/mdpi_4class_v1.onnx` in the repository. Custom models must follow the contract described in [Using your own model](modules/object_classification/README.md#using-your-own-model).
 
 Upon execution, the script will prompt for MDPI configuration details like capture rate and image dimensions.
 
@@ -45,8 +45,15 @@ Here is an example of how to run the pipeline:
 
 ```bash
 python3 run_pipeline.py \
+  -i ./profiles/Project_Example/20230425/day/E01_01
+```
+
+Example with a custom model:
+
+```bash
+python3 run_pipeline.py \
   -i ./profiles/Project_Example/20230425/day/E01_01 \
-  -m ./model
+  -m ./my_models/my_model_mdpi.onnx
 ```
 
 ## Running the Streamlit Web Interface
