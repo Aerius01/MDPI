@@ -17,7 +17,7 @@ _KEY_NORMALIZATION = "mdpi.normalization"
 _KEY_NORM_MEAN = "mdpi.norm_mean"
 _KEY_NORM_STD = "mdpi.norm_std"
 _FLOAT_TYPE = "tensor(float)"
-_HASH_CHUNK_BYTES = 1 << 20
+_PROVIDERS: list[str] = ["CPUExecutionProvider"]
 _INPUT_EXPECTED = "[B, N, N], [B, N, N, 1] or [B, 1, N, N] with dynamic B and static N >= 2"
 
 Dim: TypeAlias = int | str | None
@@ -61,16 +61,12 @@ _METADATA_HELP = (
 )
 
 
-def _sha256_of(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        while chunk := handle.read(_HASH_CHUNK_BYTES):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _fail(path: Path, message: str) -> ModelContractError:
     return ModelContractError(f"Model '{path}': {message}")
+
+
+def _create_session(model_bytes: bytes) -> ort.InferenceSession:
+    return ort.InferenceSession(model_bytes, providers=_PROVIDERS)
 
 
 def _is_static(dim: Dim) -> bool:
@@ -164,14 +160,15 @@ def load_classifier_model(path: Path) -> ClassifierModel:
     """Load an ONNX classifier and validate it against the MDPI model contract."""
     path = Path(path).expanduser().resolve()
     if not path.exists():
-        raise FileNotFoundError(f"Model file not found: '{path}'. Check the path passed to -m/--model.")
+        raise FileNotFoundError(f"Model file not found: '{path}'. Check the model path.")
     if not path.is_file():
-        raise _fail(path, "path is not a file. Pass a .onnx file to -m/--model.")
+        raise _fail(path, "path is not a file. Pass a .onnx file.")
     if path.suffix.lower() != ".onnx":
         raise _fail(path, f"expected a '.onnx' file, found suffix '{path.suffix}'. Convert the model to ONNX first.")
 
+    model_bytes = path.read_bytes()
     try:
-        session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+        session = _create_session(model_bytes)
     except Exception as error:  # onnxruntime raises several unrelated exception types
         raise _fail(path, f"onnxruntime cannot load this file ({error}). Check that it is a valid ONNX model.") from error
 
@@ -186,6 +183,8 @@ def load_classifier_model(path: Path) -> ClassifierModel:
     outputs = session.get_outputs()
     if len(outputs) != 1:
         raise _fail(path, f"model must have exactly 1 output, found {len(outputs)} ({[o.name for o in outputs]}). Re-export with a single output of raw scores (logits).")
+    if outputs[0].type != _FLOAT_TYPE:
+        raise _fail(path, f"output '{outputs[0].name}' must be {_FLOAT_TYPE}, found {outputs[0].type}. Re-export with raw float32 scores (logits).")
     output_shape = list(outputs[0].shape)
     if len(output_shape) != 2 or not _is_static(output_shape[1]):
         raise _fail(path, f"output must have shape [B, C] with static C, found {output_shape}. Re-export with raw scores of shape [batch, num_classes].")
@@ -198,7 +197,7 @@ def load_classifier_model(path: Path) -> ClassifierModel:
 
     return ClassifierModel(
         path=path,
-        sha256=_sha256_of(path),
+        sha256=hashlib.sha256(model_bytes).hexdigest(),
         input_name=model_input.name,
         input_size=input_size,
         layout=layout,
@@ -207,3 +206,15 @@ def load_classifier_model(path: Path) -> ClassifierModel:
         norm_mean=norm_mean,
         norm_std=norm_std,
     )
+
+
+def open_session(model: ClassifierModel) -> ort.InferenceSession:
+    """Open a CPU inference session on the model file, verifying it is unchanged since validation."""
+    try:
+        model_bytes = model.path.read_bytes()
+    except FileNotFoundError as error:
+        raise FileNotFoundError(f"Model file '{model.path}' no longer exists. Restore it and restart the run.") from error
+    current = hashlib.sha256(model_bytes).hexdigest()
+    if current != model.sha256:
+        raise _fail(model.path, f"the file changed since it was validated (sha256 {model.sha256[:12]} then, {current[:12]} now). Restart the run to validate the new file.")
+    return _create_session(model_bytes)
