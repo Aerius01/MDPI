@@ -9,7 +9,7 @@ dependencies:
   - anaconda::numpy
   - conda-forge::opencv
   - anaconda::pandas
-  - anaconda::scikit-image
+  - anaconda::scikit-image>=0.26
   - conda-forge::onnxruntime
   - anaconda::scikit-learn
   - pygobject=3.48.2
