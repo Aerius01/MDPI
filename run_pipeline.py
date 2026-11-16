@@ -58,6 +58,10 @@ def validate_inputs_and_setup(
     # Resolve absolute paths
     input_dir_path = Path(input_dir).resolve()
 
+    # Validate the ONNX model contract first so a bad model creates no output folder
+    classifier_model = load_classifier_model(model_path)
+    print(f"[PIPELINE]: Using classification model {classifier_model.path}")
+
     # Create and validate output directory
     output_root_path = setup_output_directory(str(input_dir_path))
 
@@ -67,10 +71,6 @@ def validate_inputs_and_setup(
         str(input_dir_path)
     )
     print(f"[PIPELINE]: Detected {camera_format} camera format.")
-
-    # Validate the ONNX model contract before any processing starts
-    classifier_model = load_classifier_model(Path(model_path).resolve())
-    print(f"[PIPELINE]: Using classification model {classifier_model.path}")
 
     # Create and return run_config with resolved paths and new data
     return SimpleNamespace(
