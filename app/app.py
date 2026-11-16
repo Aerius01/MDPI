@@ -5,7 +5,6 @@ import multiprocessing
 import queue
 import time
 import html
-import streamlit.components.v1 as components
 
 # Tkinter is only available when a display server is present.
 # In headless environments (e.g., WSL without GUI), importing or using it will fail.
@@ -389,7 +388,7 @@ def main():
     </script>
     """
     with log_placeholder.container():
-        components.html(log_html, height=420)
+        st.iframe(log_html, height=420)
 
 
     if is_running:
