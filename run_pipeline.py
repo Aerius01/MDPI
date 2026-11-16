@@ -12,7 +12,7 @@ Steps:
 Example:
   python3 run_pipeline.py \
     -i /home/david-james/Desktop/04-MDPI/MDPI/profiles/Project_Example/20230425/day/E01_01 \
-    -m /home/david-james/Desktop/04-MDPI/MDPI/model
+    -m /home/david-james/Desktop/04-MDPI/MDPI/model/mdpi_4class_v1.onnx
 """
 
 import argparse
@@ -24,7 +24,6 @@ from types import SimpleNamespace
 from modules.common.cli_utils import prompt_for_mdpi_configuration
 from modules.common.validation import (
     validate_input_directory,
-    validate_model,
     setup_output_directory,
 )
 
@@ -37,6 +36,10 @@ from modules.depth_profiling.depth_profile_data import (
 from modules.depth_profiling.run import run_depth_profiling
 from modules.flatfielding.run import run_flatfielding
 from modules.object_detection.run import run_detection
+from modules.object_classification.model_contract import (
+    DEFAULT_MODEL_PATH,
+    load_classifier_model,
+)
 from modules.object_classification.run import run_classification
 from modules.plotter.run import run_plotter
 
@@ -47,14 +50,13 @@ DEFAULT_IMG_WIDTH = IMAGE_HEIGHT_CM / 10.0  # in decimeters, equal to IMAGE_HEIG
 
 
 def validate_inputs_and_setup(
-    input_dir, model_dir, capture_rate, image_height_cm, img_depth, img_width
+    input_dir, model_path: Path, capture_rate, image_height_cm, img_depth, img_width
 ):
     """
     Validates all pipeline inputs and sets up necessary configurations.
     """
     # Resolve absolute paths
     input_dir_path = Path(input_dir).resolve()
-    model_dir_path = Path(model_dir).resolve()
 
     # Create and validate output directory
     output_root_path = setup_output_directory(str(input_dir_path))
@@ -66,13 +68,14 @@ def validate_inputs_and_setup(
     )
     print(f"[PIPELINE]: Detected {camera_format} camera format.")
 
-    # Validate model directory
-    validate_model(str(model_dir_path))
+    # Validate the ONNX model contract before any processing starts
+    classifier_model = load_classifier_model(Path(model_path).resolve())
+    print(f"[PIPELINE]: Using classification model {classifier_model.path}")
 
     # Create and return run_config with resolved paths and new data
     return SimpleNamespace(
         input_dir=str(input_dir_path),
-        model_dir=str(model_dir_path),
+        classifier_model=classifier_model,
         output_root=str(output_root_path),
         capture_rate=capture_rate,
         image_height_cm=image_height_cm,
@@ -122,13 +125,21 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python3 run_pipeline.py -i ./profiles/Project_Example/20230425/day/E01_01 -m ./model
+  python3 run_pipeline.py -i ./profiles/Project_Example/20230425/day/E01_01
+  python3 run_pipeline.py -i ./profiles/Project_Example/20230425/day/E01_01 -m path/to/custom.onnx
         """,
     )
 
     # Required/primary args
     parser.add_argument("-i", "-\u002Dinput", dest="input", required=True, help="Input directory with raw MDPI images and pressure sensor CSV")
-    parser.add_argument("-m", "-\u002Dmodel", dest="model", required=True, help="Path to trained model directory containing model.ckpt files")
+    parser.add_argument(
+        "-m",
+        "--model",
+        dest="model",
+        type=Path,
+        default=DEFAULT_MODEL_PATH,
+        help="Path to an ONNX classification model (default: model/mdpi_4class_v1.onnx). See modules/object_classification/README.md for the model contract.",
+    )
 
     args = parser.parse_args()
 
@@ -140,7 +151,7 @@ Examples:
     try:
         run_config = validate_inputs_and_setup(
             input_dir=args.input,
-            model_dir=args.model,
+            model_path=args.model,
             capture_rate=capture_rate,
             image_height_cm=image_height_cm,
             img_depth=img_depth,

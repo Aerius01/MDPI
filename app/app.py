@@ -1,7 +1,6 @@
 import streamlit as st
 import os
 import sys
-from pathlib import Path
 import multiprocessing
 import queue
 import time
@@ -35,8 +34,8 @@ def main():
     MAX_LOG_LINES = 2000
 
     # Common
-    from modules.common.parser import parse_file_metadata
     from modules.common.validation import validate_input_directory
+    from modules.object_classification.model_contract import DEFAULT_MODEL_PATH
     from run_pipeline import (
         execute_pipeline,
         validate_inputs_and_setup,
@@ -133,7 +132,7 @@ def main():
                 st.markdown(f"<p style='color:orange; margin-bottom:0.1rem; font-size:0.9rem;'>⚠️ Could not parse file metadata: {e}</p>", unsafe_allow_html=True)
 
 
-    def pipeline_worker(log_queue: multiprocessing.Queue, input_dirs, model_dir, capture_rate, image_height_cm, img_depth, img_width):
+    def pipeline_worker(log_queue: multiprocessing.Queue, input_dirs, model_path, capture_rate, image_height_cm, img_depth, img_width):
         """The target function for the pipeline process. Processes one or more input directories sequentially. No st calls here."""
         # Redirect stdout and stderr to the queue
         logger = QueueLogger(log_queue)
@@ -152,7 +151,7 @@ def main():
                 print(f"[PIPELINE]: Starting {idx}/{total} → {input_dir}")
                 run_config = validate_inputs_and_setup(
                     input_dir=input_dir,
-                    model_dir=model_dir,
+                    model_path=model_path,
                     capture_rate=capture_rate,
                     image_height_cm=image_height_cm,
                     img_depth=img_depth,
@@ -288,7 +287,7 @@ def main():
 
     # --- Run/Stop Buttons ---
     def start_pipeline():
-        model_dir = os.path.join(PROJECT_ROOT, "model")
+        model_path = DEFAULT_MODEL_PATH
 
         # Build list of inputs from dynamic rows
         input_dirs = [
@@ -311,7 +310,7 @@ def main():
         image_width_dm = image_width_cm / 10.0
         process = multiprocessing.Process(
             target=pipeline_worker,
-            args=(log_queue, input_dirs, model_dir, capture_rate, image_height_cm, image_depth_dm, image_width_dm)
+            args=(log_queue, input_dirs, model_path, capture_rate, image_height_cm, image_depth_dm, image_width_dm)
         )
         process.daemon = True
         st.session_state.pipeline_process = process

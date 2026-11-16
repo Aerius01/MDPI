@@ -8,10 +8,6 @@ from modules.depth_profiling.depth_profile_data import (
     read_csv_with_encodings,
 )
 
-# Constants for model validation
-MODEL_CHECKPOINT_FILENAME = "model.ckpt"
-MODEL_CHECKPOINT_EXTENSIONS = ["meta", "index", "data-00000-of-00001"]
-
 
 def validate_input_directory(input_dir: str):
     """
@@ -50,21 +46,6 @@ def validate_input_directory(input_dir: str):
     camera_format = detect_camera_format(header_df)
 
     return metadata, str(pressure_sensor_csv_path), camera_format
-
-
-def validate_model(model_path: str):
-    """
-    Validates the existence of the model directory and checkpoint files.
-    """
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"Model directory does not exist: {model_path}")
-
-    model_checkpoint = os.path.join(model_path, MODEL_CHECKPOINT_FILENAME)
-    if not any(
-        os.path.exists(f"{model_checkpoint}.{ext}")
-        for ext in MODEL_CHECKPOINT_EXTENSIONS
-    ):
-        raise FileNotFoundError(f"Model checkpoint files not found in: {model_path}")
 
 
 def setup_output_directory(input_dir: str) -> str:
